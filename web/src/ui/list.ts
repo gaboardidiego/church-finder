@@ -12,7 +12,8 @@ const el = <K extends keyof HTMLElementTagNameMap>(
   return node;
 };
 
-const humanize = (value: string): string => value.replace(/_/g, ' ');
+export const humanize = (value: string): string =>
+  value.replace(/[_;]/g, (c) => (c === '_' ? ' ' : ', '));
 
 function formatServiceDate(iso: string): string {
   const [y = 0, m = 1, d = 1] = iso.split('-').map(Number);

@@ -38,7 +38,7 @@ Always run `npm run check` before finishing a change.
 - `data.ts`: parsing/loading the database (pure, tested).
 - `geo.ts`: haversine distance and formatting.
 - `filters.ts`: name/date/language filtering, sorting by distance, date helpers.
-- `nominatim.ts`: address geocoding (bounded to Vienna; one request per user submit, per Nominatim usage policy).
+
 - `analytics.ts`: GoatCounter wrapper; `trackEvent(name)` is a no-op without a site code.
 - `ui/map.ts`: Leaflet map (markers, draggable origin pin, click-to-pin). `ui/list.ts`: result cards.
 - `main.ts`: wires state, DOM events and rendering. Keep logic in pure modules and cover it with `*.test.ts`.
@@ -52,7 +52,7 @@ Always run `npm run check` before finishing a change.
 ## Analytics and privacy
 
 - GoatCounter is cookie-less, so no consent banner. Set the site code via `VITE_GOATCOUNTER_CODE` (locally in `web/.env`, in CI via the repository variable `GOATCOUNTER_CODE`).
-- Existing events: `search_name`, `search_address`, `use_location`, `pin_location`, `filter_day_*`, `filter_date`, `filter_language`, `open_website`.
+- Existing events: `search_name`, `use_location`, `pin_location`, `filter_day_*`, `filter_date`, `filter_language`, `filter_denomination`, `open_website`.
 - Never send the user's coordinates or search text to analytics.
 
 ## Deployment

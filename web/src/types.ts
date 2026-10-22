@@ -23,6 +23,7 @@ export interface Filters {
   query: string;
   date: string | null;
   language: string;
+  denomination: string;
 }
 
 export interface Result {

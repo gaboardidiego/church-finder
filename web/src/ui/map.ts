@@ -2,16 +2,26 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Position, Result } from '../types';
 
+const NEAREST_WITH_PIN = 4;
 const VIENNA: L.LatLngTuple = [48.2082, 16.3738];
 
 // Default Leaflet icons break under bundlers, so use simple divIcons.
+const CROSS =
+  '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M10.5 2h3v6.5H20v3h-6.5V22h-3V11.5H4v-3h6.5z"/></svg>';
 const churchIcon = (active: boolean): L.DivIcon =>
   L.divIcon({
     className: `church-marker${active ? ' active' : ''}`,
-    html: '⛪',
-    iconSize: [30, 30],
+    html: `<span class="pin">${CROSS}</span>`,
+    iconSize: active ? [40, 48] : [32, 40],
+    iconAnchor: active ? [20, 48] : [16, 40],
+    popupAnchor: [0, -38],
   });
-const originIcon = L.divIcon({ className: 'origin-marker', html: '📍', iconSize: [30, 30] });
+const originIcon = L.divIcon({
+  className: 'origin-marker',
+  html: '<span class="pulse"></span><span class="dot"></span>',
+  iconSize: [28, 28],
+  iconAnchor: [14, 14],
+});
 
 export interface MapHandlers {
   onPick: (position: Position) => void;
@@ -43,7 +53,7 @@ export class ChurchMap {
     this.map.invalidateSize();
   }
 
-  setOrigin(position: Position | null, fly = false): void {
+  setOrigin(position: Position | null): void {
     if (this.origin) {
       this.origin.remove();
       this.origin = null;
@@ -56,7 +66,6 @@ export class ChurchMap {
         this.handlers.onPick({ latitude: lat, longitude: lng });
       })
       .addTo(this.map);
-    if (fly) this.map.setView(latlng, Math.max(this.map.getZoom(), 14));
   }
 
   setResults(results: Result[]): void {
@@ -88,15 +97,19 @@ export class ChurchMap {
   }
 
   fitToResults(results: Result[]): void {
+    // With a pin, frame it together with the nearest few churches (results are distance-sorted).
     const points = results
-      .slice(0, 30)
+      .slice(0, this.origin ? NEAREST_WITH_PIN : 30)
       .map((r): L.LatLngTuple => [r.church.position.latitude, r.church.position.longitude]);
     if (this.origin) {
       const { lat, lng } = this.origin.getLatLng();
       points.push([lat, lng]);
     }
     if (points.length > 0)
-      this.map.fitBounds(L.latLngBounds(points), { padding: [30, 30], maxZoom: 15 });
+      this.map.fitBounds(L.latLngBounds(points), {
+        padding: [30, 30],
+        maxZoom: this.origin ? 16 : 15,
+      });
   }
 
   highlight(id: string | null, pan = false): void {

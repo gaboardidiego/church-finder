@@ -2,6 +2,7 @@ import { haversineKm } from './geo';
 import type { Church, Filters, Position, Result } from './types';
 
 export const ALL_LANGUAGES = '';
+export const ALL_DENOMINATIONS = '';
 
 export const normalize = (text: string): string =>
   text
@@ -35,6 +36,12 @@ export function collectLanguages(churches: Church[]): string[] {
   return [...set].sort((a, b) => a.localeCompare(b));
 }
 
+export function collectDenominations(churches: Church[]): string[] {
+  const set = new Set<string>();
+  for (const church of churches) if (church.denomination) set.add(church.denomination);
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+
 export function applyFilters(
   churches: Church[],
   filters: Filters,
@@ -44,6 +51,7 @@ export function applyFilters(
   const results: Result[] = [];
   for (const church of churches) {
     if (query && !normalize(church.name).includes(query)) continue;
+    if (filters.denomination && church.denomination !== filters.denomination) continue;
     const services = church.services.filter(
       (s) =>
         (filters.date === null || s.date === filters.date) &&

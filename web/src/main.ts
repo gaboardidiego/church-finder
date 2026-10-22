@@ -1,16 +1,17 @@
 import { initAnalytics, trackEvent } from './analytics';
 import { loadChurches } from './data';
 import {
+  ALL_DENOMINATIONS,
   ALL_LANGUAGES,
   addDays,
   applyFilters,
+  collectDenominations,
   collectLanguages,
   toIsoDate,
   weekendDates,
 } from './filters';
-import { searchPlace } from './nominatim';
 import type { Church, Filters, Position } from './types';
-import { renderResults, setActiveCard } from './ui/list';
+import { humanize, renderResults, setActiveCard } from './ui/list';
 import { ChurchMap } from './ui/map';
 import './style.css';
 
@@ -21,16 +22,21 @@ const $ = <T extends HTMLElement>(selector: string): T => {
 };
 
 const nameInput = $<HTMLInputElement>('#name-search');
-const addressInput = $<HTMLInputElement>('#address-search');
 const dateInput = $<HTMLInputElement>('#date');
 const languageSelect = $<HTMLSelectElement>('#language');
+const denominationSelect = $<HTMLSelectElement>('#denomination');
 const statusEl = $<HTMLElement>('#status');
 const resultsEl = $<HTMLElement>('#results');
 const layoutEl = $<HTMLElement>('.layout');
 
 const state: { churches: Church[]; filters: Filters; origin: Position | null; weekend: boolean } = {
   churches: [],
-  filters: { query: '', date: toIsoDate(new Date()), language: ALL_LANGUAGES },
+  filters: {
+    query: '',
+    date: toIsoDate(new Date()),
+    language: ALL_LANGUAGES,
+    denomination: ALL_DENOMINATIONS,
+  },
   origin: null,
   weekend: false,
 };
@@ -38,20 +44,24 @@ const state: { churches: Church[]; filters: Filters; origin: Position | null; we
 const map = new ChurchMap($('#map'), {
   onPick: (position) => {
     trackEvent('pin_location');
-    setOrigin(position, 'Pinned position', false);
+    pickPosition(position);
   },
   onSelect: (id) => setActiveCard(resultsEl, id, true),
 });
+
+function pickPosition(position: Position): void {
+  setOrigin(position, 'your pin');
+}
 
 function setStatus(message: string): void {
   statusEl.textContent = message;
 }
 
-function setOrigin(position: Position | null, label: string, fly: boolean): void {
+function setOrigin(position: Position | null, label: string): void {
   state.origin = position;
-  map.setOrigin(position, fly);
+  map.setOrigin(position);
   setStatus(position ? `Sorted by distance from: ${label}` : '');
-  refresh(!fly);
+  refresh();
 }
 
 function refresh(fit = true): void {
@@ -118,23 +128,16 @@ languageSelect.addEventListener('change', () => {
   trackEvent('filter_language');
   refresh();
 });
+denominationSelect.addEventListener('change', () => {
+  state.filters.denomination = denominationSelect.value;
+  trackEvent('filter_denomination');
+  refresh();
+});
 nameInput.addEventListener('input', () => {
   state.filters.query = nameInput.value;
   refresh();
 });
 nameInput.addEventListener('change', () => trackEvent('search_name'));
-
-$('#address-form').addEventListener('submit', (event) => {
-  event.preventDefault();
-  trackEvent('search_address');
-  setStatus('Searching address…');
-  searchPlace(addressInput.value)
-    .then((place) => {
-      if (place) setOrigin(place.position, place.label, true);
-      else setStatus('Address not found in Vienna.');
-    })
-    .catch(() => setStatus('Address search is currently unavailable.'));
-});
 
 $('#locate').addEventListener('click', () => {
   trackEvent('use_location');
@@ -144,9 +147,8 @@ $('#locate').addEventListener('click', () => {
   }
   setStatus('Locating…');
   navigator.geolocation.getCurrentPosition(
-    ({ coords }) =>
-      setOrigin({ latitude: coords.latitude, longitude: coords.longitude }, 'your location', true),
-    () => setStatus('Could not get your location. Pin a position on the map instead.'),
+    ({ coords }) => pickPosition({ latitude: coords.latitude, longitude: coords.longitude }),
+    () => setStatus('Could not get your location. Click the map to drop a pin instead.'),
     { enableHighAccuracy: false, timeout: 10000 },
   );
 });
@@ -176,6 +178,9 @@ async function start(): Promise<void> {
   languageSelect.append(new Option('All languages', ALL_LANGUAGES));
   for (const language of collectLanguages(state.churches))
     languageSelect.append(new Option(language, language));
+  denominationSelect.append(new Option('All denominations', ALL_DENOMINATIONS));
+  for (const d of collectDenominations(state.churches))
+    denominationSelect.append(new Option(humanize(d), d));
   refresh();
 }
 

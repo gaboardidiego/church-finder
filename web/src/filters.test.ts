@@ -37,29 +37,41 @@ describe('filters', () => {
   it('filters by name ignoring accents', () => {
     const r = applyFilters(
       churches,
-      { query: 'etienne', date: null, language: ALL_LANGUAGES },
+      { query: 'etienne', date: null, language: ALL_LANGUAGES, denomination: '' },
       null,
     );
     expect(r.map((x) => x.church.id)).toEqual(['far']);
   });
 
   it('filters by date and language, dropping churches without matching services', () => {
-    const r = applyFilters(churches, { query: '', date: '2026-10-24', language: 'English' }, null);
-    expect(r.map((x) => x.church.id)).toEqual(['near']);
-    expect(applyFilters(churches, { query: '', date: '2026-10-30', language: '' }, null)).toEqual(
-      [],
+    const r = applyFilters(
+      churches,
+      { query: '', date: '2026-10-24', language: 'English', denomination: '' },
+      null,
     );
+    expect(r.map((x) => x.church.id)).toEqual(['near']);
+    expect(
+      applyFilters(
+        churches,
+        { query: '', date: '2026-10-30', language: '', denomination: '' },
+        null,
+      ),
+    ).toEqual([]);
   });
 
   it('keeps churches without services when no service filter is active', () => {
-    const r = applyFilters(churches, { query: '', date: null, language: '' }, null);
+    const r = applyFilters(
+      churches,
+      { query: '', date: null, language: '', denomination: '' },
+      null,
+    );
     expect(r).toHaveLength(3);
   });
 
   it('sorts by distance when an origin is given', () => {
     const r = applyFilters(
       churches,
-      { query: '', date: null, language: '' },
+      { query: '', date: null, language: '', denomination: '' },
       {
         latitude: 48.21,
         longitude: 16.37,
@@ -77,5 +89,20 @@ describe('filters', () => {
     expect(addDays('2026-10-31', 1)).toBe('2026-11-01');
     expect(weekendDates('2026-10-22')).toEqual(['2026-10-24', '2026-10-25']);
     expect(weekendDates('2026-10-25')).toEqual(['2026-10-25']);
+  });
+});
+
+describe('denomination filter', () => {
+  it('keeps only matching denominations', () => {
+    const typed = [
+      { ...churches[0]!, denomination: 'lutheran' },
+      { ...churches[1]!, denomination: 'catholic' },
+    ];
+    const r = applyFilters(
+      typed,
+      { query: '', date: null, language: '', denomination: 'lutheran' },
+      null,
+    );
+    expect(r.map((x) => x.church.denomination)).toEqual(['lutheran']);
   });
 });

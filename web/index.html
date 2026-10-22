@@ -12,14 +12,10 @@
   <body>
     <div id="app">
       <header class="topbar">
-        <h1>⛪ Church Finder <small>Vienna</small></h1>
+        <h1><span class="logo">✝</span> Church Finder <small>Vienna</small></h1>
         <div class="search">
           <input id="name-search" type="search" placeholder="Church name…" autocomplete="off" />
-          <form id="address-form" class="address">
-            <input id="address-search" type="search" placeholder="Address or place…" />
-            <button type="submit">Go</button>
-          </form>
-          <button id="locate" type="button">📍 Use my location</button>
+          <button id="locate" type="button">◎ Use my location</button>
         </div>
         <div class="filters">
           <div class="chips" id="day-chips">
@@ -30,8 +26,12 @@
           </div>
           <input id="date" type="date" aria-label="Day" />
           <select id="language" aria-label="Language"></select>
+          <select id="denomination" aria-label="Denomination"></select>
         </div>
         <p id="status" role="status"></p>
+        <p class="hint">
+          💡 Click anywhere on the map to drop a pin — churches are sorted by distance from it.
+        </p>
       </header>
       <div class="view-toggle">
         <button type="button" data-view="list" class="active">List</button>
