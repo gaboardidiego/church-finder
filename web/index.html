@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Church Finder – Services in Vienna</title>
+    <meta
+      name="description"
+      content="Find church services in Vienna by day, language and location."
+    />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <h1>⛪ Church Finder <small>Vienna</small></h1>
+        <div class="search">
+          <input id="name-search" type="search" placeholder="Church name…" autocomplete="off" />
+          <form id="address-form" class="address">
+            <input id="address-search" type="search" placeholder="Address or place…" />
+            <button type="submit">Go</button>
+          </form>
+          <button id="locate" type="button">📍 Use my location</button>
+        </div>
+        <div class="filters">
+          <div class="chips" id="day-chips">
+            <button type="button" data-day="today">Today</button>
+            <button type="button" data-day="tomorrow">Tomorrow</button>
+            <button type="button" data-day="weekend">This weekend</button>
+            <button type="button" data-day="any">Any day</button>
+          </div>
+          <input id="date" type="date" aria-label="Day" />
+          <select id="language" aria-label="Language"></select>
+        </div>
+        <p id="status" role="status"></p>
+      </header>
+      <div class="view-toggle">
+        <button type="button" data-view="list" class="active">List</button>
+        <button type="button" data-view="map">Map</button>
+      </div>
+      <main class="layout" data-view="list">
+        <section id="results" aria-label="Results"></section>
+        <section id="map" aria-label="Map"></section>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
