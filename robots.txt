@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://gaboardidiego.github.io/church-finder/sitemap.xml
