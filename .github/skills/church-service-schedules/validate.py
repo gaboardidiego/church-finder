@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Validate church service schedule output.
 
-Usage: validate.py <input.json> [--days N] [--output-root DIR]
+Usage: validate.py <input.json> [--days N] [--timezone IANA_NAME] [--output-root DIR]
 
 Exit code 0 when everything is valid, 1 otherwise. Problems are printed one per line.
 """
@@ -33,7 +33,7 @@ def is_valid_record(rec) -> bool:
     )
 
 
-def check_services(path: Path, today: date, last: date) -> tuple[list[str], int]:
+def check_services(path: Path, today: date, last: date | None) -> tuple[list[str], int]:
     problems: list[str] = []
     try:
         services = json.loads(path.read_text(encoding="utf-8"))
@@ -52,8 +52,8 @@ def check_services(path: Path, today: date, last: date) -> tuple[list[str], int]
             problems.append(f"{where}: invalid start_time {svc['start_time']!r}")
         try:
             d = date.fromisoformat(svc["date"])
-            if not today <= d <= last:
-                problems.append(f"{where}: date {d} outside {today}..{last}")
+            if d < today or (last is not None and d > last):
+                problems.append(f"{where}: date {d} outside {today}..{last or 'open end'}")
         except (TypeError, ValueError):
             problems.append(f"{where}: invalid date {svc['date']!r}")
     return problems, len(services)
@@ -62,13 +62,15 @@ def check_services(path: Path, today: date, last: date) -> tuple[list[str], int]
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("input", type=Path)
-    ap.add_argument("--days", type=int, default=30)
+    ap.add_argument("--days", type=int, help="optional horizon; default: no upper limit")
+    ap.add_argument("--timezone", help="IANA timezone of the churches (default: system timezone)")
     ap.add_argument("--output-root", type=Path)
     args = ap.parse_args()
 
     root = args.output_root or Path("data/services") / args.input.stem
-    today = datetime.now(ZoneInfo("Europe/Vienna")).date()
-    last = today + timedelta(days=args.days)
+    tz = ZoneInfo(args.timezone) if args.timezone else None
+    today = datetime.now(tz).date()
+    last = today + timedelta(days=args.days) if args.days is not None else None
 
     problems: list[str] = []
     needs_errors_log = False
