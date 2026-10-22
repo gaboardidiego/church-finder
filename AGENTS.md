@@ -21,6 +21,7 @@ Guide for humans and AI agents working on Church Finder.
 | `npm test`             | Vitest unit tests                                    |
 | `npm run check`        | Format check + lint + typecheck + tests (used in CI) |
 | `npm run sync-data`    | Refresh the website's database copy (see below)      |
+| `npm run deploy`       | Build locally and publish `web/dist` to `gh-pages`   |
 
 Always run `npm run check` before finishing a change.
 
@@ -51,13 +52,13 @@ Always run `npm run check` before finishing a change.
 
 ## Analytics and privacy
 
-- GoatCounter is cookie-less, so no consent banner. Set the site code via `VITE_GOATCOUNTER_CODE` (locally in `web/.env`, in CI via the repository variable `GOATCOUNTER_CODE`).
+- GoatCounter is cookie-less, so no consent banner. Set the public site code via `VITE_GOATCOUNTER_CODE` in `web/.env`; this is an identifier, not a secret.
 - Existing events: `search_name`, `use_location`, `pin_location`, `filter_day_*`, `filter_date`, `filter_language`, `filter_denomination`, `open_website`.
 - Never send the user's coordinates or search text to analytics.
 
 ## Deployment
 
-`.github/workflows/deploy.yml` builds and publishes `web/dist` to GitHub Pages on push to `main` (enable Pages with source "GitHub Actions"). `ci.yml` runs checks on PRs.
+Build and publish locally with `cd web && npm run deploy`. This pushes the contents of `web/dist` to the `gh-pages` branch; configure GitHub Pages to deploy from that branch's root. `.github/workflows/ci.yml` continues to run checks on PRs and pushes to `main`.
 
 ## Adding another city
 
