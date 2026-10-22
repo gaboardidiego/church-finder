@@ -1,5 +1,5 @@
 import { formatDistance } from '../geo';
-import type { Result, Service } from '../types';
+import type { Position, Result, Service } from '../types';
 
 const el = <K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -37,7 +37,20 @@ export interface ListHandlers {
   onHover: (id: string | null) => void;
   onSelect: (id: string) => void;
   onOpenWebsite: (id: string) => void;
+  onOpenMap: (id: string) => void;
 }
+
+const svg = (paths: string): string =>
+  `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+const GLOBE_ICON = svg(
+  '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>',
+);
+const PIN_ICON = svg(
+  '<path d="M12 21s-7-5.6-7-11a7 7 0 0 1 14 0c0 5.4-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>',
+);
+
+export const googleMapsUrl = ({ latitude, longitude }: Position): string =>
+  `https://www.google.com/maps/search/?api=1&query=${latitude}%2C${longitude}`;
 
 export function renderResults(
   container: HTMLElement,
@@ -75,17 +88,32 @@ export function renderResults(
     }
     card.append(chips);
 
-    if (/^https?:\/\//i.test(church.website)) {
-      const link = el('a', 'website', 'Website ↗');
-      link.href = church.website;
+    const actions = el('div', 'actions');
+    const addLink = (
+      label: string,
+      icon: string,
+      href: string,
+      onClick: () => void,
+      primary = false,
+    ): void => {
+      const link = el('a', primary ? 'action primary' : 'action');
+      link.insertAdjacentHTML('beforeend', icon);
+      link.append(el('span', undefined, label));
+      link.href = href;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
       link.addEventListener('click', (e) => {
         e.stopPropagation();
-        handlers.onOpenWebsite(church.id);
+        onClick();
       });
-      card.append(link);
-    }
+      actions.append(link);
+    };
+    if (/^https?:\/\//i.test(church.website))
+      addLink('Website', GLOBE_ICON, church.website, () => handlers.onOpenWebsite(church.id), true);
+    addLink('Directions', PIN_ICON, googleMapsUrl(church.position), () =>
+      handlers.onOpenMap(church.id),
+    );
+    card.append(actions);
     container.append(card);
   }
 }

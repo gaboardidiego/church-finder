@@ -84,6 +84,7 @@ function refresh(fit = true): void {
       setActiveCard(resultsEl, id, false);
     },
     onOpenWebsite: () => trackEvent('open_website'),
+    onOpenMap: () => trackEvent('open_google_maps'),
   });
   map.setResults(results);
   if (fit) map.fitToResults(results);

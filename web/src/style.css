@@ -202,14 +202,46 @@ button:hover {
   color: var(--muted);
   font-size: 0.85rem;
 }
-.website {
+.actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--accent);
   text-decoration: none;
+  transition:
+    background 0.15s,
+    box-shadow 0.15s,
+    transform 0.15s;
 }
-.website:hover {
-  text-decoration: underline;
+.action:hover {
+  background: #e0e4ff;
+  transform: translateY(-1px);
+}
+.action.primary {
+  background: linear-gradient(135deg, #6366f1, #7c3aed);
+  color: #fff;
+  box-shadow: 0 2px 8px rgb(99 102 241 / 35%);
+}
+.action.primary:hover {
+  background: linear-gradient(135deg, #5558e8, #6d28d9);
+  box-shadow: 0 4px 12px rgb(99 102 241 / 45%);
+}
+.action:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(79 70 229 / 30%);
 }
 .empty {
   text-align: center;
