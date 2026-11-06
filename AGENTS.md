@@ -28,22 +28,20 @@ publish, commit the generated `docs/` files to `main` and push; configure GitHub
 
 ## Python data tools
 
-Run from the repository root:
+The standalone Python project is in `scraper/`. Use its Astral tooling and tests when changing
+that project:
 
 ```sh
-uv sync --project scripts --group dev
-uv run --project scripts python scripts/fetch_vienna_churches.py --format json
-uv run --project scripts pytest scripts/test_fetch_erzdioezese_services.py
+uv sync --project scraper --group dev
+uv run --project scraper pytest scraper/tests
+uv run --project scraper ruff check scraper/
+uv run --project scraper ruff format --check scraper/
+uv run --project scraper ty check scraper/src
 ```
 
-Install Playwright's browser before running the Archdiocese importer:
-
-```sh
-uv run --project scripts python -m playwright install chromium
-```
-
-See [README.md](README.md) for importer consent, postcode coverage, checkpoints, request pacing
-and data limitations. The fetcher and importer share OSM record-fetching and normalization code.
+Its source is organized under `scraper/src/church_finder_scraper/`; see `scraper/AGENTS.md` and
+`scraper/README.md` for importer consent, postcode coverage, checkpoints, request pacing, and
+data limitations.
 
 ## Website data
 
@@ -51,8 +49,9 @@ and data limitations. The fetcher and importer share OSM record-fetching and nor
   at runtime.
 - `npm run sync-data` copies `data/databases/churches_vienna_filtered.database.json` to the
   website. That source is local and ignored by Git.
-- `scripts/build_static_database.py` assembles a database from a church list and per-church
-  `services.json` files. The Archdiocese importer writes the website's compact schema directly.
+- `scraper/src/church_finder_scraper/static_database.py` assembles a database from a church list
+  and per-church `services.json` files. The Archdiocese importer writes the website's compact
+  schema directly.
 - Schema: `{ churches: [{ uuid, name, website, position: { latitude, longitude }, religion, denomination }], services: { [uuid]: [{ language, start_time, date }] } }`.
 - Services may be empty. `web/src/data.ts` skips unusable entries and supplies "Unnamed church"
   when a name is missing.

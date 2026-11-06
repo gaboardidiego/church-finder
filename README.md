@@ -2,6 +2,11 @@
 
 Find church services in Vienna by day, language and location.
 
+## Python scraper
+
+The standalone Python tools are in [`scraper/`](scraper/). From that directory, run
+`uv sync --group dev` and `uv run pytest`; see its README for CLI commands and quality checks.
+
 ## Run the website
 
 From `web/`:
@@ -21,9 +26,10 @@ Run from the repository root. Fetch the church list, then assemble it with the m
 `data/services/churches_vienna/<uuid>/services.json` files:
 
 ```sh
-uv sync --project scripts --group dev
-uv run --project scripts python scripts/fetch_vienna_churches.py --format json
-uv run --project scripts python scripts/build_static_database.py \
+uv sync --project scraper --group dev
+uv run --project scraper churches-osm --format json \
+  --output data/churches/churches_vienna.json
+uv run --project scraper churches-build-db \
   data/churches/churches_vienna.json \
   --output data/databases/churches_vienna_filtered.database.json
 ```
@@ -31,9 +37,9 @@ uv run --project scripts python scripts/build_static_database.py \
 To fetch services from the Archdiocese of Vienna instead, install its browser and run the importer:
 
 ```sh
-uv sync --project scripts
-uv run --project scripts python -m playwright install chromium
-uv run --project scripts python scripts/fetch_erzdioezese_services.py \
+uv sync --project scraper
+uv run --project scraper playwright install chromium
+uv run --project scraper churches-services \
   --consent-google-maps \
   --output data/databases/churches_vienna_filtered.database.json
 ```
