@@ -1,14 +1,8 @@
-#!/usr/bin/env python3
-"""Combine church records and their service schedules into a compact JSON file."""
-
 from __future__ import annotations
 
-import argparse
 import json
 from pathlib import Path
 from typing import Any
-
-REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
 
 def load_json(path: Path) -> Any:
@@ -18,31 +12,6 @@ def load_json(path: Path) -> Any:
         raise SystemExit(f"Cannot read {path}: {error}") from error
     except json.JSONDecodeError as error:
         raise SystemExit(f"Invalid JSON in {path}: {error}") from error
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description=(
-            "Combine a church JSON array and all services.json files under its "
-            "matching data directory into one compact static-website database."
-        )
-    )
-    parser.add_argument(
-        "churches",
-        type=Path,
-        help="church list JSON file (for example, small.json)",
-    )
-    parser.add_argument(
-        "--services-dir",
-        type=Path,
-        help="directory containing per-church folders (default: data/services/<input-name>)",
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        help="output JSON file (default: data/databases/<input-name>.database.json)",
-    )
-    return parser.parse_args()
 
 
 def build_database(churches_path: Path, services_dir: Path) -> dict[str, Any]:
@@ -83,37 +52,3 @@ def build_database(churches_path: Path, services_dir: Path) -> dict[str, Any]:
         raise SystemExit(f"No services.json found for church uuid(s): {missing_ids}")
 
     return {"churches": churches, "services": services_by_church}
-
-
-def main() -> None:
-    args = parse_args()
-    churches_path = args.churches
-    services_dir = args.services_dir or (
-        REPOSITORY_ROOT / "data" / "services" / churches_path.stem
-    )
-    output_path = args.output or (
-        REPOSITORY_ROOT
-        / "data"
-        / "databases"
-        / f"{churches_path.stem}.database.json"
-    )
-
-    database = build_database(churches_path, services_dir)
-    source_paths = {churches_path.resolve()}
-    source_paths.update(path.resolve() for path in services_dir.rglob("services.json"))
-    if output_path.resolve() in source_paths:
-        raise SystemExit(f"Output path would overwrite an input file: {output_path}")
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    serialized = json.dumps(database, ensure_ascii=False, separators=(",", ":")) + "\n"
-    output_path.write_text(serialized, encoding="utf-8")
-
-    service_count = sum(len(services) for services in database["services"].values())
-    print(
-        f"Wrote {len(database['churches'])} churches and {service_count} services "
-        f"to {output_path} ({output_path.stat().st_size} bytes)"
-    )
-
-
-if __name__ == "__main__":
-    main()
