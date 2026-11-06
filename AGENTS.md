@@ -18,11 +18,13 @@ Run from `web/`:
 | `npm install` | Install dependencies and set up the Husky hook |
 | `npm run dev` | Start the Vite development server |
 | `npm run check` | Run formatting check, ESLint, TypeScript and Vitest |
-| `npm run build` | Typecheck and create the production build in `dist/` |
+| `npm run build` | Typecheck and create the production build in `../docs/` |
 | `npm run sync-data` | Copy the generated filtered database into `public/data/` |
-| `npm run deploy` | Build and publish `dist/` to the `gh-pages` branch |
+| `npm run deploy` | Build the site into the repository's `docs/` directory |
 
-Always run `npm run check` before finishing a website change. CI also runs `npm run build`.
+Always run `npm run check` before finishing a website change. CI also runs `npm run build`. To
+publish, commit the generated `docs/` files to `main` and push; configure GitHub Pages to use the
+`main` branch and `/docs` as its source.
 
 ## Python data tools
 

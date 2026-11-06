@@ -52,4 +52,5 @@ npm run deploy
 ```
 
 `npm run check` runs formatting, lint, typecheck and tests. `npm run deploy` builds the site into
-`dist/` for local use; it does not publish to GitHub Pages or make any changes to the live website.
+the repository's `docs/` directory. Commit the generated files to `main` and push to publish them
+with GitHub Pages. Configure GitHub Pages to use the `main` branch and `/docs` as its source.
