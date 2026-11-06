@@ -1,0 +1,21 @@
+[project]
+name = "church-finder-data"
+version = "0.1.0"
+description = "Data collection tools for Church Finder"
+requires-python = ">=3.11"
+dependencies = [
+    "beautifulsoup4>=4.12,<5",
+    "playwright>=1.48,<2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8,<9",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["."]
+
+[tool.uv]
+package = false

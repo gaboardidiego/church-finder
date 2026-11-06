@@ -1,4 +1,8 @@
 /data/
+/.venv/
+/scripts/.venv/
+/scripts/__pycache__/
+/scripts/.pytest_cache/
 node_modules/
 /web/.env
 /web/dist/

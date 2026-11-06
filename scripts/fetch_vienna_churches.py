@@ -157,6 +157,32 @@ def write_json(path: Path, records: list[dict], retrieved_at: str) -> None:
     path.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def fetch_records(endpoint: str = OVERPASS_URL, timeout: int = 200, retries: int = 2) -> list[dict]:
+    """Fetch and normalize Vienna OSM records for reuse by other importers."""
+    endpoints = list(dict.fromkeys((endpoint, *FALLBACK_OVERPASS_URLS)))
+    for index, current_endpoint in enumerate(endpoints):
+        try:
+            elements = fetch_elements(current_endpoint, timeout, retries)
+            break
+        except RuntimeError as error:
+            if index + 1 == len(endpoints):
+                raise
+            LOGGER.warning("%s; switching to fallback Overpass instance", error)
+
+    unique_elements = {
+        (element["type"], element["id"]): element
+        for element in elements
+    }
+    LOGGER.info(
+        "Removed %d duplicate feature(s); preparing %d unique record(s)",
+        len(elements) - len(unique_elements),
+        len(unique_elements),
+    )
+    records = [make_record(element) for element in unique_elements.values()]
+    records.sort(key=lambda item: (str(item["name"]).casefold(), item["osm_type"], item["osm_id"]))
+    return records
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -213,30 +239,10 @@ def main() -> int:
         REPOSITORY_ROOT / "data" / "churches" / f"churches_vienna.{args.format}"
     )
     retrieved_at = datetime.now(timezone.utc).isoformat()
-    endpoints = list(dict.fromkeys((args.endpoint, *FALLBACK_OVERPASS_URLS)))
     LOGGER.info("Starting Vienna church search using OpenStreetMap Overpass")
     LOGGER.info("Searching Vienna for Christian places of worship and church buildings")
     try:
-        for index, endpoint in enumerate(endpoints):
-            try:
-                elements = fetch_elements(endpoint, args.timeout, args.retries)
-                break
-            except RuntimeError as error:
-                if index + 1 == len(endpoints):
-                    raise
-                LOGGER.warning("%s; switching to fallback Overpass instance", error)
-
-        unique_elements = {
-            (element["type"], element["id"]): element
-            for element in elements
-        }
-        LOGGER.info(
-            "Removed %d duplicate feature(s); preparing %d unique record(s)",
-            len(elements) - len(unique_elements),
-            len(unique_elements),
-        )
-        records = [make_record(element) for element in unique_elements.values()]
-        records.sort(key=lambda item: (str(item["name"]).casefold(), item["osm_type"], item["osm_id"]))
+        records = fetch_records(args.endpoint, args.timeout, args.retries)
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         LOGGER.info("Writing %s output to %s", args.format.upper(), output_path)

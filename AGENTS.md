@@ -1,65 +1,83 @@
 # AGENTS.md
 
-Guide for humans and AI agents working on Church Finder.
+Project guide for Church Finder.
 
-## Overview
+## Project layout
 
-- `data/` and `scripts/`: Python data collection (churches, services). Not part of the website.
-- `web/`: the static, frontend-only website (Vite + vanilla TypeScript + Leaflet/OpenStreetMap).
-- Only free services are allowed: OSM tiles, Nominatim, GoatCounter, GitHub Pages. No backend.
+- `web/` is the static, frontend-only Vienna site, built with Vite, TypeScript and Leaflet.
+- `scripts/` contains Python tools for fetching church and service data and preparing JSON databases.
+- `data/` holds local generated/input data and is ignored by Git; it is not loaded by the website.
+- The site uses OpenStreetMap tiles and optional GoatCounter analytics. It has no backend.
 
-## Commands (run inside `web/`)
+## Website commands
 
-| Command                | Purpose                                              |
-| ---------------------- | ---------------------------------------------------- |
-| `npm install`          | Install deps and set up the husky pre-commit hook    |
-| `npm run dev`          | Dev server                                           |
-| `npm run build`        | Typecheck + production build to `web/dist`           |
-| `npm run format`       | Prettier write (`format:check` to verify)            |
-| `npm run lint`         | ESLint                                               |
-| `npm run typecheck`    | `tsc --noEmit`                                       |
-| `npm test`             | Vitest unit tests                                    |
-| `npm run check`        | Format check + lint + typecheck + tests (used in CI) |
-| `npm run sync-data`    | Refresh the website's database copy (see below)      |
-| `npm run deploy`       | Build locally and publish `web/dist` to `gh-pages`   |
+Run from `web/`:
 
-Always run `npm run check` before finishing a change.
+| Command | Purpose |
+| --- | --- |
+| `npm install` | Install dependencies and set up the Husky hook |
+| `npm run dev` | Start the Vite development server |
+| `npm run check` | Run formatting check, ESLint, TypeScript and Vitest |
+| `npm run build` | Typecheck and create the production build in `dist/` |
+| `npm run sync-data` | Copy the generated filtered database into `public/data/` |
+| `npm run deploy` | Build and publish `dist/` to the `gh-pages` branch |
 
-## Data
+Always run `npm run check` before finishing a website change. CI also runs `npm run build`.
 
-- The site uses its **own copy**: `web/public/data/churches_vienna.database.json`.
-  Never reference `data/databases/` from the website.
-- To update it, rebuild the database with `scripts/build_static_database.py`, then run `npm run sync-data`.
-- Schema: `{ churches: [{ uuid, name, website, position: {latitude, longitude}, religion, denomination }], services: { [uuid]: [{ language, start_time: "HH:MM", date: "YYYY-MM-DD" }] } }`.
-- Services may be empty. `src/data.ts` is defensive: invalid entries are skipped, missing names become "Unnamed church".
+## Python data tools
 
-## Architecture (`web/src`)
+Run from the repository root:
 
-- `types.ts`: shared types.
-- `data.ts`: parsing/loading the database (pure, tested).
-- `geo.ts`: haversine distance and formatting.
-- `filters.ts`: name/date/language filtering, sorting by distance, date helpers.
+```sh
+uv sync --project scripts --group dev
+uv run --project scripts python scripts/fetch_vienna_churches.py --format json
+uv run --project scripts pytest scripts/test_fetch_erzdioezese_services.py
+```
 
-- `analytics.ts`: GoatCounter wrapper; `trackEvent(name)` is a no-op without a site code.
-- `ui/map.ts`: Leaflet map (markers, draggable origin pin, click-to-pin). `ui/list.ts`: result cards.
-- `main.ts`: wires state, DOM events and rendering. Keep logic in pure modules and cover it with `*.test.ts`.
+Install Playwright's browser before running the Archdiocese importer:
 
-## Conventions
+```sh
+uv run --project scripts python -m playwright install chromium
+```
 
-- TypeScript strict; prettier style (single quotes, 100 cols). No frameworks.
-- Build DOM with `textContent`/`createElement`, never `innerHTML` with data values.
-- Put new logic in pure functions with unit tests next to them.
+See [README.md](README.md) for importer consent, postcode coverage, checkpoints, request pacing
+and data limitations. The fetcher and importer share OSM record-fetching and normalization code.
 
-## Analytics and privacy
+## Website data
 
-- GoatCounter is cookie-less, so no consent banner. Set the public site code via `VITE_GOATCOUNTER_CODE` in `web/.env`; this is an identifier, not a secret.
-- Existing events: `search_name`, `use_location`, `pin_location`, `filter_day_*`, `filter_date`, `filter_language`, `filter_denomination`, `open_website`.
-- Never send the user's coordinates or search text to analytics.
+- The website loads `web/public/data/churches_vienna.database.json`; do not load files from `data/`
+  at runtime.
+- `npm run sync-data` copies `data/databases/churches_vienna_filtered.database.json` to the
+  website. That source is local and ignored by Git.
+- `scripts/build_static_database.py` assembles a database from a church list and per-church
+  `services.json` files. The Archdiocese importer writes the website's compact schema directly.
+- Schema: `{ churches: [{ uuid, name, website, position: { latitude, longitude }, religion, denomination }], services: { [uuid]: [{ language, start_time, date }] } }`.
+- Services may be empty. `web/src/data.ts` skips unusable entries and supplies "Unnamed church"
+  when a name is missing.
 
-## Deployment
+## Website architecture
 
-Build and publish locally with `cd web && npm run deploy`. This pushes the contents of `web/dist` to the `gh-pages` branch; configure GitHub Pages to deploy from that branch's root. `.github/workflows/ci.yml` continues to run checks on PRs and pushes to `main`.
+- `web/src/types.ts`: shared TypeScript types.
+- `web/src/data.ts`: data parsing and loading.
+- `web/src/geo.ts`: distance calculations and formatting.
+- `web/src/filters.ts`: filtering, sorting and date helpers.
+- `web/src/analytics.ts`: optional GoatCounter initialization and events.
+- `web/src/ui/map.ts` and `web/src/ui/list.ts`: map and result cards.
+- `web/src/main.ts`: application state, DOM events and rendering.
 
-## Adding another city
+Keep logic in pure functions where practical and add tests in adjacent `*.test.ts` files.
 
-Add its database copy under `web/public/data/`, make the data URL and the Nominatim `VIENNA_VIEWBOX` / map default center configurable, and update this file.
+## Conventions and privacy
+
+- Use strict TypeScript and the existing Prettier style; do not add a framework.
+- Build DOM with `textContent` and `createElement`; never place data values in `innerHTML`.
+- Set the public GoatCounter site code with `VITE_GOATCOUNTER_CODE` in `web/.env`. Leave it empty
+  to disable analytics. Never send the user's coordinates or search text to analytics.
+- Existing events include `search_name`, `use_location`, `pin_location`, `filter_day_*`,
+  `filter_date`, `filter_language`, `filter_denomination`, `open_website` and `open_google_maps`.
+
+## City scope
+
+The website and OSM fetcher currently target Vienna. The website data URL is in
+`web/src/main.ts`, and the default map center is in `web/src/ui/map.ts`; both are currently
+Vienna-specific.

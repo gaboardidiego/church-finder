@@ -53,6 +53,10 @@ export class ChurchMap {
     this.map.invalidateSize();
   }
 
+  panTo(position: Position): void {
+    this.map.panTo([position.latitude, position.longitude]);
+  }
+
   setOrigin(position: Position | null): void {
     if (this.origin) {
       this.origin.remove();

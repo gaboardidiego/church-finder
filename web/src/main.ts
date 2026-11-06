@@ -57,11 +57,11 @@ function setStatus(message: string): void {
   statusEl.textContent = message;
 }
 
-function setOrigin(position: Position | null, label: string): void {
+function setOrigin(position: Position | null, label: string, fit = true): void {
   state.origin = position;
   map.setOrigin(position);
   setStatus(position ? `Sorted by distance from: ${label}` : '');
-  refresh();
+  refresh(fit);
 }
 
 function refresh(fit = true): void {
@@ -148,7 +148,11 @@ $('#locate').addEventListener('click', () => {
   }
   setStatus('Locating…');
   navigator.geolocation.getCurrentPosition(
-    ({ coords }) => pickPosition({ latitude: coords.latitude, longitude: coords.longitude }),
+    ({ coords }) => {
+      const position = { latitude: coords.latitude, longitude: coords.longitude };
+      setOrigin(position, 'your location', false);
+      map.panTo(position);
+    },
     () => setStatus('Could not get your location. Click the map to drop a pin instead.'),
     { enableHighAccuracy: false, timeout: 10000 },
   );
