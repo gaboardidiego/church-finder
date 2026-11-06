@@ -28,6 +28,14 @@ body {
   flex-direction: column;
   height: 100dvh;
 }
+.scope-alert {
+  margin: 0;
+  padding: 0.45rem 1rem;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  text-align: center;
+  font-size: 0.85rem;
+}
 .topbar {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
