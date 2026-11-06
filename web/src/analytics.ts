@@ -8,19 +8,17 @@ declare global {
   }
 }
 
-const code = import.meta.env.VITE_GOATCOUNTER_CODE as string | undefined;
+const countUrl = 'https://church-finder.goatcounter.com/count';
 
-/** Loads GoatCounter (free, cookie-less). Does nothing when no site code is configured. */
+/** Loads GoatCounter (free, cookie-less). */
 export function initAnalytics(): void {
-  if (!code) return;
   const script = document.createElement('script');
   script.async = true;
-  script.dataset.goatcounter = `https://${code}.goatcounter.com/count`;
-  script.src = 'https://gc.zgo.at/count.js';
+  script.dataset.goatcounter = countUrl;
+  script.src = '//gc.zgo.at/count.js';
   document.head.appendChild(script);
 }
 
 export function trackEvent(name: string): void {
-  if (!code) return;
   window.goatcounter?.count({ path: name, title: name, event: true });
 }

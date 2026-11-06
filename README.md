@@ -11,6 +11,10 @@ npm install
 npm run dev
 ```
 
+## Analytics
+
+[View analytics](https://church-finder.goatcounter.com/).
+
 ## Generate the database
 
 Run from the repository root. Fetch the church list, then assemble it with the matching

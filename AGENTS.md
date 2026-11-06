@@ -7,7 +7,7 @@ Project guide for Church Finder.
 - `web/` is the static, frontend-only Vienna site, built with Vite, TypeScript and Leaflet.
 - `scripts/` contains Python tools for fetching church and service data and preparing JSON databases.
 - `data/` holds local generated/input data and is ignored by Git; it is not loaded by the website.
-- The site uses OpenStreetMap tiles and optional GoatCounter analytics. It has no backend.
+- The site uses OpenStreetMap tiles and GoatCounter analytics. It has no backend.
 
 ## Website commands
 
@@ -61,7 +61,7 @@ and data limitations. The fetcher and importer share OSM record-fetching and nor
 - `web/src/data.ts`: data parsing and loading.
 - `web/src/geo.ts`: distance calculations and formatting.
 - `web/src/filters.ts`: filtering, sorting and date helpers.
-- `web/src/analytics.ts`: optional GoatCounter initialization and events.
+- `web/src/analytics.ts`: GoatCounter initialization and events.
 - `web/src/ui/map.ts` and `web/src/ui/list.ts`: map and result cards.
 - `web/src/main.ts`: application state, DOM events and rendering.
 
@@ -71,8 +71,8 @@ Keep logic in pure functions where practical and add tests in adjacent `*.test.t
 
 - Use strict TypeScript and the existing Prettier style; do not add a framework.
 - Build DOM with `textContent` and `createElement`; never place data values in `innerHTML`.
-- Set the public GoatCounter site code with `VITE_GOATCOUNTER_CODE` in `web/.env`. Leave it empty
-  to disable analytics. Never send the user's coordinates or search text to analytics.
+- GoatCounter analytics are always enabled for `church-finder.goatcounter.com`. Never send the
+  user's coordinates or search text to analytics.
 - Existing events include `search_name`, `use_location`, `pin_location`, `filter_day_*`,
   `filter_date`, `filter_language`, `filter_denomination`, `open_website` and `open_google_maps`.
 
