@@ -1,4 +1,5 @@
 import { formatDistance } from '../geo';
+import { formatMessage, type Locale, type Messages } from '../i18n';
 import type { Position, Result, Service } from '../types';
 
 const el = <K extends keyof HTMLElementTagNameMap>(
@@ -15,18 +16,19 @@ const el = <K extends keyof HTMLElementTagNameMap>(
 export const humanize = (value: string): string =>
   value.replace(/[_;]/g, (c) => (c === '_' ? ' ' : ', '));
 
-function formatServiceDate(iso: string): string {
+function formatServiceDate(iso: string, locale: Locale): string {
   const [y = 0, m = 1, d = 1] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en-GB', {
+  const dateLocale = locale === 'de' ? 'de-AT' : locale === 'it' ? 'it-IT' : 'en-GB';
+  return new Date(y, m - 1, d).toLocaleDateString(dateLocale, {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
   });
 }
 
-export function serviceLabel(service: Service, showDate: boolean): string {
+export function serviceLabel(service: Service, showDate: boolean, locale: Locale): string {
   const parts = [
-    showDate ? formatServiceDate(service.date) : '',
+    showDate ? formatServiceDate(service.date, locale) : '',
     service.startTime,
     service.language,
   ];
@@ -57,10 +59,12 @@ export function renderResults(
   results: Result[],
   showDates: boolean,
   handlers: ListHandlers,
+  locale: Locale,
+  text: Messages,
 ): void {
   container.replaceChildren();
   if (results.length === 0) {
-    container.append(el('p', 'empty', 'No services found. Try another day or language.'));
+    container.append(el('p', 'empty', text.noServices));
     return;
   }
   for (const { church, services, distanceKm } of results) {
@@ -80,11 +84,14 @@ export function renderResults(
 
     const chips = el('div', 'service-list');
     if (services.length === 0) {
-      chips.append(el('span', 'muted', 'No services listed'));
+      chips.append(el('span', 'muted', text.noServicesListed));
     } else {
       for (const s of services.slice(0, 6))
-        chips.append(el('span', 'chip', serviceLabel(s, showDates)));
-      if (services.length > 6) chips.append(el('span', 'muted', `+${services.length - 6} more`));
+        chips.append(el('span', 'chip', serviceLabel(s, showDates, locale)));
+      if (services.length > 6)
+        chips.append(
+          el('span', 'muted', formatMessage(locale, 'more', { count: services.length - 6 })),
+        );
     }
     card.append(chips);
 
@@ -109,8 +116,14 @@ export function renderResults(
       actions.append(link);
     };
     if (/^https?:\/\//i.test(church.website))
-      addLink('Website', GLOBE_ICON, church.website, () => handlers.onOpenWebsite(church.id), true);
-    addLink('Directions', PIN_ICON, googleMapsUrl(church.position), () =>
+      addLink(
+        text.website,
+        GLOBE_ICON,
+        church.website,
+        () => handlers.onOpenWebsite(church.id),
+        true,
+      );
+    addLink(text.directions, PIN_ICON, googleMapsUrl(church.position), () =>
       handlers.onOpenMap(church.id),
     );
     card.append(actions);
