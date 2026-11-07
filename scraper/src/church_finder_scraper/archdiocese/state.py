@@ -20,3 +20,22 @@ def connect_state(path: Path, postcodes: list[str], languages: bool) -> sqlite3.
     db.execute("INSERT OR IGNORE INTO metadata VALUES ('fingerprint', ?)", (fingerprint,))
     db.commit()
     return db
+
+
+def completed_postcodes(db: sqlite3.Connection, postcodes: list[str]) -> set[str]:
+    completed = {row[0] for row in db.execute("SELECT postcode FROM results")}
+    if completed - set(postcodes):
+        raise ValueError("Checkpoint contains unexpected postcodes")
+    return completed
+
+
+def save_batch(db: sqlite3.Connection, batch: dict) -> None:
+    db.execute(
+        "INSERT INTO results VALUES (?, ?)",
+        (batch["postcode"], json.dumps(batch, ensure_ascii=False)),
+    )
+    db.commit()
+
+
+def load_batches(db: sqlite3.Connection) -> list[dict]:
+    return [json.loads(row[0]) for row in db.execute("SELECT data FROM results ORDER BY postcode")]
