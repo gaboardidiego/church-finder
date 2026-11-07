@@ -1,0 +1,38 @@
+[project]
+name = "church-finder-scraper"
+version = "0.1.0"
+description = "Church Finder data collection tools"
+requires-python = ">=3.11"
+dependencies = [
+    "beautifulsoup4>=4.12,<5",
+    "playwright>=1.48,<2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8,<9",
+    "ruff>=0.11,<1",
+    "ty>=0.0.1",
+]
+
+[project.scripts]
+churches-osm = "church_finder_scraper.osm.cli:main"
+churches-build-db = "church_finder_scraper.static_database_cli:main"
+churches-services = "church_finder_scraper.archdiocese.cli:run"
+
+[build-system]
+requires = ["uv_build>=0.8.0,<0.9.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ty.environment]
+python-version = "3.11"

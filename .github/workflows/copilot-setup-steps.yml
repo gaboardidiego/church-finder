@@ -38,4 +38,4 @@ jobs:
         uses: astral-sh/setup-uv@v6
 
       - name: Install Python dependencies
-        run: uv sync --project scripts --group dev
+        run: uv sync --project scraper --group dev
