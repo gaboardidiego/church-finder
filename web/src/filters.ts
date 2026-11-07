@@ -30,6 +30,35 @@ export function weekendDates(today: string): string[] {
   return [saturday, addDays(saturday, 1)];
 }
 
+export function dateForDay(day: string, today: string): string | null {
+  if (day === 'today') return today;
+  if (day === 'tomorrow') return addDays(today, 1);
+  if (day === 'any' || day === 'weekend') return null;
+  return day;
+}
+
+export function filterResults(
+  churches: Church[],
+  filters: Filters,
+  origin: Position | null,
+  weekend: boolean,
+  today: string,
+): Result[] {
+  const results = applyFilters(
+    churches,
+    { ...filters, date: weekend ? null : filters.date },
+    origin,
+  );
+  if (!weekend) return results;
+  const days = weekendDates(today);
+  return results
+    .map((result) => ({
+      ...result,
+      services: result.services.filter((service) => days.includes(service.date)),
+    }))
+    .filter((result) => result.services.length > 0);
+}
+
 export function collectLanguages(churches: Church[]): string[] {
   const set = new Set<string>();
   for (const church of churches) for (const s of church.services) set.add(s.language);

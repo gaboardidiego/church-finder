@@ -1,25 +1,11 @@
 import { initAnalytics, trackEvent } from './analytics';
 import { loadChurches } from './data';
-import {
-  formatMessage,
-  isLocale,
-  messages,
-  resolveLocale,
-  type Locale,
-  type TranslationKey,
-} from './i18n';
-import {
-  ALL_DENOMINATIONS,
-  ALL_LANGUAGES,
-  addDays,
-  applyFilters,
-  collectDenominations,
-  collectLanguages,
-  toIsoDate,
-  weekendDates,
-} from './filters';
+import { formatMessage, isLocale, messages, resolveLocale } from './i18n';
+import { ALL_DENOMINATIONS, ALL_LANGUAGES, dateForDay, filterResults, toIsoDate } from './filters';
 import type { Church, Filters, Position } from './types';
-import { humanize, renderResults, setActiveCard } from './ui/list';
+import { populateFilterOptions } from './ui/filter-options';
+import { renderResults, setActiveCard } from './ui/list';
+import { applyLocale, getSavedLocale, saveLocale } from './ui/locale';
 import { ChurchMap } from './ui/map';
 import './style.css';
 
@@ -75,56 +61,6 @@ function setStatus(message: string): void {
   statusEl.textContent = message;
 }
 
-function translate(key: string): string | undefined {
-  return key in messages[locale] ? messages[locale][key as TranslationKey] : undefined;
-}
-
-function getSavedLocale(): string | null {
-  try {
-    return localStorage.getItem('church-finder-locale');
-  } catch {
-    return null;
-  }
-}
-
-function applyLocale(nextLocale: Locale): void {
-  locale = nextLocale;
-  document.documentElement.lang = locale;
-  uiLanguageSelect.value = locale;
-  for (const node of document.querySelectorAll<HTMLElement>('[data-i18n]')) {
-    const key = node.dataset.i18n;
-    const text = key ? translate(key) : undefined;
-    if (text !== undefined) node.textContent = text;
-  }
-  for (const node of document.querySelectorAll<HTMLElement>('[data-i18n-placeholder]')) {
-    const key = node.dataset.i18nPlaceholder;
-    const text = key ? translate(key) : undefined;
-    if (text !== undefined) node.setAttribute('placeholder', text);
-  }
-  for (const node of document.querySelectorAll<HTMLElement>('[data-i18n-aria-label]')) {
-    const key = node.dataset.i18nAriaLabel;
-    const text = key ? translate(key) : undefined;
-    if (text !== undefined) node.setAttribute('aria-label', text);
-  }
-  document.title = messages[locale].title;
-  document
-    .querySelector('meta[name="description"]')
-    ?.setAttribute('content', messages[locale].description);
-  document
-    .querySelector('meta[property="og:title"]')
-    ?.setAttribute('content', messages[locale].title);
-  document
-    .querySelector('meta[property="og:description"]')
-    ?.setAttribute('content', messages[locale].description);
-  document
-    .querySelector('meta[name="twitter:title"]')
-    ?.setAttribute('content', messages[locale].title);
-  document
-    .querySelector('meta[name="twitter:description"]')
-    ?.setAttribute('content', messages[locale].description);
-  document.querySelector('meta[property="og:locale"]')?.setAttribute('content', locale);
-}
-
 function setOrigin(position: Position | null, label: 'yourPin' | 'yourLocation', fit = true): void {
   state.origin = position;
   state.originLabel = position ? label : '';
@@ -137,17 +73,13 @@ function setOrigin(position: Position | null, label: 'yourPin' | 'yourLocation',
 
 function refresh(fit = true): void {
   const { filters } = state;
-  const base = applyFilters(
+  const results = filterResults(
     state.churches,
-    { ...filters, date: state.weekend ? null : filters.date },
+    filters,
     state.origin,
+    state.weekend,
+    toIsoDate(new Date()),
   );
-  const weekendDays = state.weekend ? weekendDates(toIsoDate(new Date())) : null;
-  const results = weekendDays
-    ? base
-        .map((r) => ({ ...r, services: r.services.filter((s) => weekendDays.includes(s.date)) }))
-        .filter((r) => r.services.length > 0)
-    : base;
   renderResults(
     resultsEl,
     results,
@@ -183,14 +115,7 @@ function updateChips(active: string): void {
 function setDay(day: string): void {
   const today = toIsoDate(new Date());
   state.weekend = day === 'weekend';
-  state.filters.date =
-    day === 'today'
-      ? today
-      : day === 'tomorrow'
-        ? addDays(today, 1)
-        : day === 'any' || state.weekend
-          ? null
-          : day;
+  state.filters.date = dateForDay(day, today);
   dateInput.value = state.filters.date ?? '';
   updateChips(day);
   trackEvent(`filter_day_${day}`);
@@ -221,11 +146,7 @@ uiLanguageSelect.addEventListener('change', () => {
   if (!isLocale(uiLanguageSelect.value)) return;
   locale = uiLanguageSelect.value;
   applyLocale(locale);
-  try {
-    localStorage.setItem('church-finder-locale', locale);
-  } catch {
-    // The chosen language still applies for this session when storage is unavailable.
-  }
+  saveLocale(locale);
   populateFilters();
   if (state.origin)
     setStatus(
@@ -272,6 +193,7 @@ document.querySelectorAll<HTMLElement>('.view-toggle button').forEach((button) =
 async function start(): Promise<void> {
   initAnalytics();
   applyLocale(locale);
+  uiLanguageSelect.value = locale;
   dateInput.value = state.filters.date ?? '';
   updateChips('today');
   try {
@@ -287,16 +209,13 @@ async function start(): Promise<void> {
 }
 
 function populateFilters(): void {
-  languageSelect.replaceChildren(new Option(messages[locale].allLanguages, ALL_LANGUAGES));
-  for (const language of collectLanguages(state.churches))
-    languageSelect.append(new Option(language, language));
-  denominationSelect.replaceChildren(
-    new Option(messages[locale].allDenominations, ALL_DENOMINATIONS),
+  populateFilterOptions(
+    languageSelect,
+    denominationSelect,
+    state.churches,
+    state.filters,
+    messages[locale],
   );
-  for (const d of collectDenominations(state.churches))
-    denominationSelect.append(new Option(humanize(d), d));
-  languageSelect.value = state.filters.language;
-  denominationSelect.value = state.filters.denomination;
 }
 
 void start();

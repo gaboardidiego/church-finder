@@ -62,6 +62,11 @@ the repository's `docs/` directory. The `Deploy website` GitHub Actions workflow
 and updates the generated files on `main` whenever website source changes are pushed. Configure
 GitHub Pages to use the `main` branch and `/docs` as its source.
 
+Website code lives in `web/src/`. `main.ts` coordinates application state and events; `filters.ts`,
+`data.ts` and `geo.ts` contain data and filtering logic; and `ui/` contains the list, map,
+localization and filter-option rendering. Add tests alongside the module being changed. The
+application-flow tests use the actual page markup with map and analytics dependencies mocked.
+
 To format, lint, test, type-check and build both projects in one command, install the repository
 script on your `PATH`:
 
