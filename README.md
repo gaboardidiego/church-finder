@@ -60,3 +60,26 @@ npm run deploy
 `npm run check` runs formatting, lint, typecheck and tests. `npm run deploy` builds the site into
 the repository's `docs/` directory. Commit the generated files to `main` and push to publish them
 with GitHub Pages. Configure GitHub Pages to use the `main` branch and `/docs` as its source.
+
+To format, lint, test, type-check and build both projects in one command, install the repository
+script on your `PATH`:
+
+```sh
+mkdir -p ~/.local/bin
+ln -s "$(pwd)/scripts/check-church-finder" ~/.local/bin/check-church-finder
+check-church-finder
+```
+
+Run it from any directory. It formats files automatically before checking them and prints all
+progress and results to the terminal; it does not create log files.
+
+To build the website and start a local preview with the default browser, install the companion
+script on your `PATH`:
+
+```sh
+ln -s "$(pwd)/scripts/start-church-finder" ~/.local/bin/start-church-finder
+start-church-finder
+```
+
+It prints the site URL (`http://127.0.0.1:4173/`) and keeps the preview server running until you
+press Ctrl-C. Progress and server output appear in the terminal only; no log files are created.

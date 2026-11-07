@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
+REPO_ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd)"
+SITE_URL="http://127.0.0.1:4173/"
+
+trap 'status=$?; printf "\nPreview session ended (exit %s).\n" "$status"' EXIT
+
+if ! command -v npm >/dev/null 2>&1; then
+  printf 'Required command not found: npm\n' >&2
+  exit 127
+fi
+
+if [[ ! -x "$REPO_ROOT/web/node_modules/.bin/vite" ]]; then
+  printf 'Web dependencies are missing. Run "npm ci" in %s/web first.\n' "$REPO_ROOT" >&2
+  exit 1
+fi
+
+cd -- "$REPO_ROOT/web"
+printf 'Building Church Finder...\n'
+npm run build
+
+printf '\nBuilt site URL: %s\n' "$SITE_URL"
+printf 'Opening the default browser when available. Press Ctrl-C to stop the preview server.\n'
+npm run preview -- --host 127.0.0.1 --port 4173 --strictPort --open
