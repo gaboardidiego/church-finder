@@ -1,4 +1,5 @@
 /data/
+/backups/
 /.venv/
 /scripts/.venv/
 /scripts/__pycache__/

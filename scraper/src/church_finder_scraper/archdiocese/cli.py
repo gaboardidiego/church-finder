@@ -23,6 +23,7 @@ from .client import Client
 from .config import LOG, OSM_WEBSITE_TOLERANCE_METERS, POSTCODES, ROOT
 from .database import build_database
 from .processing import candidate_postcodes
+from .publish import publish_database
 from .state import connect_state
 
 
@@ -77,6 +78,12 @@ def main() -> int:
         "--output", type=Path, default=ROOT / "data/databases/erzdioezese_wien.database.json"
     )
     parser.add_argument(
+        "--website-output",
+        type=Path,
+        default=ROOT / "web/public/data/churches_vienna.database.json",
+        help="website database path to update after scraping",
+    )
+    parser.add_argument(
         "--state", type=Path, default=ROOT / "data/databases/erzdioezese_wien.checkpoint.sqlite"
     )
     args = parser.parse_args()
@@ -91,6 +98,8 @@ def main() -> int:
         parser.error("--osm-timeout must be positive and --osm-retries cannot be negative")
     if args.output.resolve() == args.state.resolve():
         parser.error("--output and --state must be different files")
+    if args.output.resolve() == args.website_output.resolve():
+        parser.error("--output and --website-output must be different files")
     if args.postcode:
         postcodes = sorted(set(args.postcode))
         if any(not re.fullmatch(r"\d{4}", postcode) for postcode in postcodes):
@@ -183,6 +192,22 @@ def main() -> int:
             sum(map(len, database["services"].values())),
             args.output,
         )
+        previous, current, backup_path = publish_database(
+            args.output,
+            args.website_output,
+            ROOT / "backups",
+        )
+        if previous is None:
+            LOG.info("Previous website database: none")
+        else:
+            LOG.info(
+                "Previous website database: %d churches and %d services (backed up to %s)",
+                previous[0],
+                previous[1],
+                backup_path,
+            )
+        LOG.info("New website database: %d churches and %d services", *current)
+        LOG.info("Published website database to %s", args.website_output)
     return 0
 
 
