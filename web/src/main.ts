@@ -1,6 +1,14 @@
 import { initAnalytics, trackEvent } from './analytics';
 import { loadChurches } from './data';
 import {
+  formatMessage,
+  isLocale,
+  messages,
+  resolveLocale,
+  type Locale,
+  type TranslationKey,
+} from './i18n';
+import {
   ALL_DENOMINATIONS,
   ALL_LANGUAGES,
   addDays,
@@ -25,11 +33,20 @@ const nameInput = $<HTMLInputElement>('#name-search');
 const dateInput = $<HTMLInputElement>('#date');
 const languageSelect = $<HTMLSelectElement>('#language');
 const denominationSelect = $<HTMLSelectElement>('#denomination');
+const uiLanguageSelect = $<HTMLSelectElement>('#ui-language');
 const statusEl = $<HTMLElement>('#status');
 const resultsEl = $<HTMLElement>('#results');
 const layoutEl = $<HTMLElement>('.layout');
 
-const state: { churches: Church[]; filters: Filters; origin: Position | null; weekend: boolean } = {
+let locale = resolveLocale(navigator.languages, getSavedLocale());
+
+const state: {
+  churches: Church[];
+  filters: Filters;
+  origin: Position | null;
+  originLabel: 'yourPin' | 'yourLocation' | '';
+  weekend: boolean;
+} = {
   churches: [],
   filters: {
     query: '',
@@ -38,6 +55,7 @@ const state: { churches: Church[]; filters: Filters; origin: Position | null; we
     denomination: ALL_DENOMINATIONS,
   },
   origin: null,
+  originLabel: '',
   weekend: false,
 };
 
@@ -50,17 +68,70 @@ const map = new ChurchMap($('#map'), {
 });
 
 function pickPosition(position: Position): void {
-  setOrigin(position, 'your pin');
+  setOrigin(position, 'yourPin');
 }
 
 function setStatus(message: string): void {
   statusEl.textContent = message;
 }
 
-function setOrigin(position: Position | null, label: string, fit = true): void {
+function translate(key: string): string | undefined {
+  return key in messages[locale] ? messages[locale][key as TranslationKey] : undefined;
+}
+
+function getSavedLocale(): string | null {
+  try {
+    return localStorage.getItem('church-finder-locale');
+  } catch {
+    return null;
+  }
+}
+
+function applyLocale(nextLocale: Locale): void {
+  locale = nextLocale;
+  document.documentElement.lang = locale;
+  uiLanguageSelect.value = locale;
+  for (const node of document.querySelectorAll<HTMLElement>('[data-i18n]')) {
+    const key = node.dataset.i18n;
+    const text = key ? translate(key) : undefined;
+    if (text !== undefined) node.textContent = text;
+  }
+  for (const node of document.querySelectorAll<HTMLElement>('[data-i18n-placeholder]')) {
+    const key = node.dataset.i18nPlaceholder;
+    const text = key ? translate(key) : undefined;
+    if (text !== undefined) node.setAttribute('placeholder', text);
+  }
+  for (const node of document.querySelectorAll<HTMLElement>('[data-i18n-aria-label]')) {
+    const key = node.dataset.i18nAriaLabel;
+    const text = key ? translate(key) : undefined;
+    if (text !== undefined) node.setAttribute('aria-label', text);
+  }
+  document.title = messages[locale].title;
+  document
+    .querySelector('meta[name="description"]')
+    ?.setAttribute('content', messages[locale].description);
+  document
+    .querySelector('meta[property="og:title"]')
+    ?.setAttribute('content', messages[locale].title);
+  document
+    .querySelector('meta[property="og:description"]')
+    ?.setAttribute('content', messages[locale].description);
+  document
+    .querySelector('meta[name="twitter:title"]')
+    ?.setAttribute('content', messages[locale].title);
+  document
+    .querySelector('meta[name="twitter:description"]')
+    ?.setAttribute('content', messages[locale].description);
+  document.querySelector('meta[property="og:locale"]')?.setAttribute('content', locale);
+}
+
+function setOrigin(position: Position | null, label: 'yourPin' | 'yourLocation', fit = true): void {
   state.origin = position;
+  state.originLabel = position ? label : '';
   map.setOrigin(position);
-  setStatus(position ? `Sorted by distance from: ${label}` : '');
+  setStatus(
+    position ? formatMessage(locale, 'sortedByDistance', { label: messages[locale][label] }) : '',
+  );
   refresh(fit);
 }
 
@@ -77,18 +148,30 @@ function refresh(fit = true): void {
         .map((r) => ({ ...r, services: r.services.filter((s) => weekendDays.includes(s.date)) }))
         .filter((r) => r.services.length > 0)
     : base;
-  renderResults(resultsEl, results, filters.date === null || state.weekend, {
-    onHover: (id) => map.highlight(id),
-    onSelect: (id) => {
-      map.highlight(id, true);
-      setActiveCard(resultsEl, id, false);
+  renderResults(
+    resultsEl,
+    results,
+    filters.date === null || state.weekend,
+    {
+      onHover: (id) => map.highlight(id),
+      onSelect: (id) => {
+        map.highlight(id, true);
+        setActiveCard(resultsEl, id, false);
+      },
+      onOpenWebsite: () => trackEvent('open_website'),
+      onOpenMap: () => trackEvent('open_google_maps'),
     },
-    onOpenWebsite: () => trackEvent('open_website'),
-    onOpenMap: () => trackEvent('open_google_maps'),
-  });
+    locale,
+    messages[locale],
+  );
   map.setResults(results);
   if (fit) map.fitToResults(results);
-  if (!state.origin) setStatus(`${results.length} churches`);
+  if (!state.origin)
+    setStatus(
+      formatMessage(locale, results.length === 1 ? 'oneChurch' : 'noChurches', {
+        count: results.length,
+      }),
+    );
 }
 
 function updateChips(active: string): void {
@@ -134,6 +217,24 @@ denominationSelect.addEventListener('change', () => {
   trackEvent('filter_denomination');
   refresh();
 });
+uiLanguageSelect.addEventListener('change', () => {
+  if (!isLocale(uiLanguageSelect.value)) return;
+  locale = uiLanguageSelect.value;
+  applyLocale(locale);
+  try {
+    localStorage.setItem('church-finder-locale', locale);
+  } catch {
+    // The chosen language still applies for this session when storage is unavailable.
+  }
+  populateFilters();
+  if (state.origin)
+    setStatus(
+      formatMessage(locale, 'sortedByDistance', {
+        label: state.originLabel ? messages[locale][state.originLabel] : '',
+      }),
+    );
+  refresh(false);
+});
 nameInput.addEventListener('input', () => {
   state.filters.query = nameInput.value;
   refresh();
@@ -143,17 +244,17 @@ nameInput.addEventListener('change', () => trackEvent('search_name'));
 $('#locate').addEventListener('click', () => {
   trackEvent('use_location');
   if (!navigator.geolocation) {
-    setStatus('Geolocation is not supported by your browser.');
+    setStatus(messages[locale].geolocationUnsupported);
     return;
   }
-  setStatus('Locating…');
+  setStatus(messages[locale].locating);
   navigator.geolocation.getCurrentPosition(
     ({ coords }) => {
       const position = { latitude: coords.latitude, longitude: coords.longitude };
-      setOrigin(position, 'your location', false);
+      setOrigin(position, 'yourLocation', false);
       map.panTo(position);
     },
-    () => setStatus('Could not get your location. Click the map to drop a pin instead.'),
+    () => setStatus(messages[locale].geolocationFailed),
     { enableHighAccuracy: false, timeout: 10000 },
   );
 });
@@ -170,6 +271,7 @@ document.querySelectorAll<HTMLElement>('.view-toggle button').forEach((button) =
 
 async function start(): Promise<void> {
   initAnalytics();
+  applyLocale(locale);
   dateInput.value = state.filters.date ?? '';
   updateChips('today');
   try {
@@ -177,16 +279,24 @@ async function start(): Promise<void> {
       `${import.meta.env.BASE_URL}data/churches_vienna.database.json`,
     );
   } catch {
-    setStatus('Could not load church data.');
+    setStatus(messages[locale].loadFailed);
     return;
   }
-  languageSelect.append(new Option('All languages', ALL_LANGUAGES));
+  populateFilters();
+  refresh();
+}
+
+function populateFilters(): void {
+  languageSelect.replaceChildren(new Option(messages[locale].allLanguages, ALL_LANGUAGES));
   for (const language of collectLanguages(state.churches))
     languageSelect.append(new Option(language, language));
-  denominationSelect.append(new Option('All denominations', ALL_DENOMINATIONS));
+  denominationSelect.replaceChildren(
+    new Option(messages[locale].allDenominations, ALL_DENOMINATIONS),
+  );
   for (const d of collectDenominations(state.churches))
     denominationSelect.append(new Option(humanize(d), d));
-  refresh();
+  languageSelect.value = state.filters.language;
+  denominationSelect.value = state.filters.denomination;
 }
 
 void start();

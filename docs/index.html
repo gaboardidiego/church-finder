@@ -49,7 +49,7 @@
         }
       }
     </script>
-    <script type="module" crossorigin src="./assets/index-B7q2zBiq.js"></script>
+    <script type="module" crossorigin src="./assets/index-BBYZqSS1.js"></script>
     <link rel="stylesheet" crossorigin href="./assets/index-aHazdN7J.css">
   </head>
   <body>
@@ -58,38 +58,62 @@
       Please enable JavaScript to use it.</noscript
     >
     <div id="app">
-      <p class="scope-alert" role="note">
+      <p class="scope-alert" role="note" data-i18n="scopeAlert">
         Currently, only results from Vienna, Austria are listed.
       </p>
       <header class="topbar">
         <h1><span class="logo">✝</span> Church Finder <small>Vienna</small></h1>
         <div class="search">
-          <input id="name-search" type="search" placeholder="Church name…" autocomplete="off" />
-          <button id="locate" type="button">◎ Use my location</button>
+          <input
+            id="name-search"
+            type="search"
+            placeholder="Church name…"
+            data-i18n-placeholder="churchName"
+            autocomplete="off"
+          />
+          <button id="locate" type="button" data-i18n="useLocation">◎ Use my location</button>
         </div>
         <div class="filters">
           <div class="chips" id="day-chips">
-            <button type="button" data-day="today">Today</button>
-            <button type="button" data-day="tomorrow">Tomorrow</button>
-            <button type="button" data-day="weekend">This weekend</button>
-            <button type="button" data-day="any">Any day</button>
+            <button type="button" data-day="today" data-i18n="today">Today</button>
+            <button type="button" data-day="tomorrow" data-i18n="tomorrow">Tomorrow</button>
+            <button type="button" data-day="weekend" data-i18n="weekend">This weekend</button>
+            <button type="button" data-day="any" data-i18n="anyDay">Any day</button>
           </div>
-          <input id="date" type="date" aria-label="Day" />
-          <select id="language" aria-label="Language"></select>
-          <select id="denomination" aria-label="Denomination"></select>
+          <input id="date" type="date" aria-label="Day" data-i18n-aria-label="day" />
+          <select
+            id="language"
+            aria-label="Service language"
+            data-i18n-aria-label="serviceLanguage"
+          ></select>
+          <select
+            id="denomination"
+            aria-label="Denomination"
+            data-i18n-aria-label="denomination"
+          ></select>
+          <label for="ui-language" data-i18n="displayLanguage">Display language</label>
+          <select
+            id="ui-language"
+            aria-label="Display language"
+            data-i18n-aria-label="displayLanguage"
+          >
+            <option value="en">English</option>
+            <option value="de">Deutsch</option>
+            <option value="it">Italiano</option>
+          </select>
         </div>
         <p id="status" role="status"></p>
-        <p class="hint">
+        <p class="hint" data-i18n="hint">
           💡 Click anywhere on the map to drop a pin — churches are sorted by distance from it.
         </p>
       </header>
       <div class="view-toggle">
-        <button type="button" data-view="list" class="active">List</button>
-        <button type="button" data-view="map">Map</button>
+        <button type="button" data-view="list" class="active" data-i18n="list">List</button>
+        <button type="button" data-view="map" data-i18n="map">Map</button>
       </div>
       <main class="layout" data-view="list">
-        <section id="results" aria-label="Results"></section>
-        <section id="map" aria-label="Map"></section>
+        <section id="results" aria-label="Results" data-i18n-aria-label="results"></section>
+        <section id="map" aria-label="Map" data-i18n-aria-label="mapLabel"></section>
       </main>
     </div>
   </body>
