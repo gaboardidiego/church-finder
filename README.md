@@ -58,8 +58,9 @@ npm run deploy
 ```
 
 `npm run check` runs formatting, lint, typecheck and tests. `npm run deploy` builds the site into
-the repository's `docs/` directory. Commit the generated files to `main` and push to publish them
-with GitHub Pages. Configure GitHub Pages to use the `main` branch and `/docs` as its source.
+the repository's `docs/` directory. The `Deploy website` GitHub Actions workflow runs these checks
+and updates the generated files on `main` whenever website source changes are pushed. Configure
+GitHub Pages to use the `main` branch and `/docs` as its source.
 
 To format, lint, test, type-check and build both projects in one command, install the repository
 script on your `PATH`:
