@@ -49,8 +49,8 @@
         }
       }
     </script>
-    <script type="module" crossorigin src="./assets/index-BBYZqSS1.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-aHazdN7J.css">
+    <script type="module" crossorigin src="./assets/index-CsvG7ZOm.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-oGD_2eTi.css">
   </head>
   <body>
     <noscript
@@ -62,7 +62,22 @@
         Currently, only results from Vienna, Austria are listed.
       </p>
       <header class="topbar">
-        <h1><span class="logo">✝</span> Church Finder <small>Vienna</small></h1>
+        <div class="topbar-heading">
+          <h1><span class="logo">✝</span> Church Finder <small>Vienna</small></h1>
+          <label class="language-switcher">
+            <span aria-hidden="true">🌐</span>
+            <span class="sr-only" data-i18n="displayLanguage">Display language</span>
+            <select
+              id="ui-language"
+              aria-label="Display language"
+              data-i18n-aria-label="displayLanguage"
+            >
+              <option value="en">English</option>
+              <option value="de">Deutsch</option>
+              <option value="it">Italiano</option>
+            </select>
+          </label>
+        </div>
         <div class="search">
           <input
             id="name-search"
@@ -91,16 +106,6 @@
             aria-label="Denomination"
             data-i18n-aria-label="denomination"
           ></select>
-          <label for="ui-language" data-i18n="displayLanguage">Display language</label>
-          <select
-            id="ui-language"
-            aria-label="Display language"
-            data-i18n-aria-label="displayLanguage"
-          >
-            <option value="en">English</option>
-            <option value="de">Deutsch</option>
-            <option value="it">Italiano</option>
-          </select>
         </div>
         <p id="status" role="status"></p>
         <p class="hint" data-i18n="hint">
