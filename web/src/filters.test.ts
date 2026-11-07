@@ -3,7 +3,10 @@ import {
   ALL_LANGUAGES,
   addDays,
   applyFilters,
+  collectDenominations,
   collectLanguages,
+  dateForDay,
+  filterResults,
   normalize,
   weekendDates,
 } from './filters';
@@ -88,7 +91,45 @@ describe('filters', () => {
   it('computes dates', () => {
     expect(addDays('2026-10-31', 1)).toBe('2026-11-01');
     expect(weekendDates('2026-10-22')).toEqual(['2026-10-24', '2026-10-25']);
+    expect(weekendDates('2026-10-24')).toEqual(['2026-10-24', '2026-10-25']);
     expect(weekendDates('2026-10-25')).toEqual(['2026-10-25']);
+  });
+
+  it('resolves day chips without changing custom dates', () => {
+    expect(dateForDay('today', '2026-10-31')).toBe('2026-10-31');
+    expect(dateForDay('tomorrow', '2026-10-31')).toBe('2026-11-01');
+    expect(dateForDay('weekend', '2026-10-31')).toBeNull();
+    expect(dateForDay('any', '2026-10-31')).toBeNull();
+    expect(dateForDay('2026-11-03', '2026-10-31')).toBe('2026-11-03');
+  });
+
+  it('combines weekend services with language and denomination filters', () => {
+    const mixed = [
+      {
+        ...churches[0]!,
+        denomination: 'catholic',
+        services: [
+          { date: '2026-10-23', startTime: '08:00', language: 'English' },
+          { date: '2026-10-24', startTime: '09:00', language: 'English' },
+          { date: '2026-10-25', startTime: '10:00', language: 'German' },
+        ],
+      },
+      { ...churches[1]!, denomination: 'lutheran' },
+    ];
+    const filters = {
+      query: '',
+      date: '2026-10-23',
+      language: 'English',
+      denomination: 'catholic',
+    };
+    const results = filterResults(mixed, filters, null, true, '2026-10-22');
+    expect(results.map((result) => result.church.id)).toEqual(['far']);
+    expect(results[0]?.services.map((service) => service.date)).toEqual(['2026-10-24']);
+    expect(filters.date).toBe('2026-10-23');
+    expect(filterResults(mixed, filters, null, false, '2026-10-22')[0]?.services[0]?.date).toBe(
+      '2026-10-23',
+    );
+    expect(collectDenominations(mixed)).toEqual(['catholic', 'lutheran']);
   });
 });
 
