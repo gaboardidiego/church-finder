@@ -346,25 +346,26 @@ button:hover {
   }
 }
 .view-toggle {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: var(--surface);
+}
+.view-toggle button.active {
+  background: var(--accent);
+  color: #fff;
+}
+.layout[data-view='list'],
+.layout[data-view='map'] {
+  grid-template-columns: 1fr;
+}
+.layout[data-view='list'] #map,
+.layout[data-view='map'] #results {
   display: none;
 }
 @media (max-width: 800px) {
-  .view-toggle {
-    display: flex;
-    gap: 0.5rem;
-    padding: 0.5rem;
-    background: var(--surface);
-  }
-  .view-toggle button.active {
-    background: var(--accent);
-    color: #fff;
-  }
   .layout {
     grid-template-columns: 1fr;
     grid-template-rows: 1fr;
-  }
-  .layout[data-view='list'] #map,
-  .layout[data-view='map'] #results {
-    display: none;
   }
 }

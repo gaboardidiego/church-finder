@@ -99,6 +99,10 @@ afterEach(() => {
 describe('application flow', () => {
   it('loads data and combines search, day, language and denomination filters', async () => {
     await start();
+    expect(element('.layout').dataset.view).toBe('map');
+    expect(
+      element<HTMLButtonElement>('.view-toggle [data-view="map"]').classList.contains('active'),
+    ).toBe(true);
     expect(mocks.initAnalytics).toHaveBeenCalledOnce();
     expect(element('#status').textContent).toBe('1 church');
     expect(element('#results').textContent).toContain('First Church');
