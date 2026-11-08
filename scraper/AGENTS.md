@@ -1,10 +1,11 @@
 # Scraper Project Guide
 
-- `src/church_finder_scraper/osm/` handles OpenStreetMap requests, record normalization,
-  serialization, and its command-line interface.
+- `src/church_finder_scraper/cli.py` dispatches scraping commands by `--country`.
+- `src/church_finder_scraper/austria/osm/` handles Vienna OpenStreetMap requests, record
+  normalization, serialization, and its command-line interface.
 - `static_database.py` validates and assembles church/service data; `static_database_cli.py`
   handles command-line paths and writing.
-- `archdiocese/` separates site interaction, parsing/normalization, checkpoint state, database
+- `austria/archdiocese/` separates site interaction, parsing/normalization, checkpoint state, database
   assembly, and the importer CLI.
 - Keep parsing and transformation logic independently testable. Put tests in `tests/`.
 - Use Astral's Ruff for linting and formatting and ty for type checking.

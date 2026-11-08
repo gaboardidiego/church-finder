@@ -17,8 +17,12 @@ from .importer import ImportOptions, import_database
 from .processing import candidate_postcodes
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=package_description)
+def parse_args(
+    argv: list[str] | None = None, *, parent_parser: argparse.ArgumentParser | None = None
+) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=package_description, parents=[parent_parser] if parent_parser else []
+    )
     parser.add_argument(
         "--consent-google-maps",
         action="store_true",
@@ -79,7 +83,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--state", type=Path, default=ROOT / "data/databases/erzdioezese_wien.checkpoint.sqlite"
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     if not args.consent_google_maps:
         parser.error("--consent-google-maps is required to use the site's search")
@@ -102,8 +106,10 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def main() -> int:
-    args = parse_args()
+def main(
+    argv: list[str] | None = None, *, parent_parser: argparse.ArgumentParser | None = None
+) -> int:
+    args = parse_args(argv, parent_parser=parent_parser)
     if args.postcode:
         postcodes = sorted(set(args.postcode))
     else:
@@ -130,9 +136,11 @@ def main() -> int:
     return 0
 
 
-def run() -> int:
+def run(
+    argv: list[str] | None = None, *, parent_parser: argparse.ArgumentParser | None = None
+) -> int:
     try:
-        return main()
+        return main(argv, parent_parser=parent_parser)
     except (OSError, ValueError, RuntimeError, sqlite3.Error, PlaywrightError) as error:
         LOG.error("%s", error)
         return 1

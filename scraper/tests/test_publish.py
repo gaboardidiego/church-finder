@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from church_finder_scraper.archdiocese.publish import publish_database
+from church_finder_scraper.austria.archdiocese.publish import publish_database
 
 
 def test_publish_database_moves_previous_version_to_backup(tmp_path: Path):
@@ -53,7 +53,8 @@ def test_publish_restores_previous_database_after_copy_failure(tmp_path: Path):
 
     with (
         patch(
-            "church_finder_scraper.archdiocese.publish.shutil.copy2", side_effect=OSError("disk")
+            "church_finder_scraper.austria.archdiocese.publish.shutil.copy2",
+            side_effect=OSError("disk"),
         ),
         pytest.raises(OSError, match="disk"),
     ):

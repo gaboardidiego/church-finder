@@ -6,9 +6,9 @@ from urllib.error import HTTPError, URLError
 
 import pytest
 
-from church_finder_scraper.osm.config import FALLBACK_OVERPASS_URLS
-from church_finder_scraper.osm.fetch import fetch_elements, fetch_records
-from church_finder_scraper.osm.records import make_record, write_csv, write_json
+from church_finder_scraper.austria.osm.config import FALLBACK_OVERPASS_URLS
+from church_finder_scraper.austria.osm.fetch import fetch_elements, fetch_records
+from church_finder_scraper.austria.osm.records import make_record, write_csv, write_json
 
 
 class Response:
@@ -26,10 +26,13 @@ class Response:
 
 
 def test_fetch_elements_validates_response_shape():
-    with patch("church_finder_scraper.osm.fetch.urlopen", return_value=Response({"elements": []})):
+    with patch(
+        "church_finder_scraper.austria.osm.fetch.urlopen", return_value=Response({"elements": []})
+    ):
         assert fetch_elements("https://overpass.example", 10, 0) == []
     with patch(
-        "church_finder_scraper.osm.fetch.urlopen", return_value=Response({"elements": [None]})
+        "church_finder_scraper.austria.osm.fetch.urlopen",
+        return_value=Response({"elements": [None]}),
     ):
         try:
             fetch_elements("https://overpass.example", 10, 0)
@@ -43,7 +46,8 @@ def test_fetch_records_deduplicates_and_sorts():
     element = {"type": "node", "id": 8, "lat": 48.2, "lon": 16.3, "tags": {"name": "Z"}}
     another = {"type": "node", "id": 9, "lat": 48.2, "lon": 16.3, "tags": {"name": "A"}}
     with patch(
-        "church_finder_scraper.osm.fetch.fetch_elements", return_value=[element, another, element]
+        "church_finder_scraper.austria.osm.fetch.fetch_elements",
+        return_value=[element, another, element],
     ):
         records = fetch_records("https://overpass.example", 10, 0)
     assert [record["name"] for record in records] == ["A", "Z"]
@@ -74,10 +78,10 @@ def test_record_conversion_and_output_formats(tmp_path: Path):
 def test_fetch_retries_transient_errors():
     with (
         patch(
-            "church_finder_scraper.osm.fetch.urlopen",
+            "church_finder_scraper.austria.osm.fetch.urlopen",
             side_effect=[URLError("unavailable"), Response({"elements": []})],
         ) as request,
-        patch("church_finder_scraper.osm.fetch.time.sleep") as sleep,
+        patch("church_finder_scraper.austria.osm.fetch.time.sleep") as sleep,
     ):
         assert fetch_elements("https://overpass.example", 10, 1) == []
     assert request.call_count == 2
@@ -87,7 +91,7 @@ def test_fetch_retries_transient_errors():
 def test_fetch_does_not_retry_permanent_http_error():
     error = HTTPError("https://overpass.example", 403, "forbidden", None, None)
     with (
-        patch("church_finder_scraper.osm.fetch.urlopen", side_effect=error) as request,
+        patch("church_finder_scraper.austria.osm.fetch.urlopen", side_effect=error) as request,
         pytest.raises(RuntimeError, match="HTTP 403"),
     ):
         fetch_elements("https://overpass.example", 10, 2)
@@ -96,7 +100,7 @@ def test_fetch_does_not_retry_permanent_http_error():
 
 def test_fetch_records_falls_back_to_another_endpoint():
     with patch(
-        "church_finder_scraper.osm.fetch.fetch_elements",
+        "church_finder_scraper.austria.osm.fetch.fetch_elements",
         side_effect=[RuntimeError("unavailable"), []],
     ) as fetch:
         assert fetch_records("https://overpass.example", 10, 0) == []

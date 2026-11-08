@@ -16,9 +16,9 @@ dev = [
 ]
 
 [project.scripts]
-churches-osm = "church_finder_scraper.osm.cli:main"
+churches-osm = "church_finder_scraper.cli:osm"
 churches-build-db = "church_finder_scraper.static_database_cli:main"
-churches-services = "church_finder_scraper.archdiocese.cli:run"
+churches-services = "church_finder_scraper.cli:services"
 
 [build-system]
 requires = ["uv_build>=0.8.0,<0.9.0"]

@@ -5,13 +5,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from church_finder_scraper.archdiocese.cli import parse_args
-from church_finder_scraper.archdiocese.importer import (
+from church_finder_scraper.austria.archdiocese.cli import parse_args
+from church_finder_scraper.austria.archdiocese.importer import (
     ImportOptions,
     import_database,
     write_database,
 )
-from church_finder_scraper.archdiocese.state import (
+from church_finder_scraper.austria.archdiocese.state import (
     completed_postcodes,
     connect_state,
     load_batches,
@@ -45,10 +45,18 @@ def test_import_resumes_after_failure_and_publishes(options: ImportOptions):
     client.postcode.side_effect = [[], RuntimeError("interrupted"), []]
 
     with (
-        patch("church_finder_scraper.archdiocese.importer.sync_playwright", return_value=manager),
-        patch("church_finder_scraper.archdiocese.importer.start_session", return_value=("s", "t")),
-        patch("church_finder_scraper.archdiocese.importer.Client", return_value=client),
-        patch("church_finder_scraper.archdiocese.importer.fetch_osm_records", return_value=[]),
+        patch(
+            "church_finder_scraper.austria.archdiocese.importer.sync_playwright",
+            return_value=manager,
+        ),
+        patch(
+            "church_finder_scraper.austria.archdiocese.importer.start_session",
+            return_value=("s", "t"),
+        ),
+        patch("church_finder_scraper.austria.archdiocese.importer.Client", return_value=client),
+        patch(
+            "church_finder_scraper.austria.archdiocese.importer.fetch_osm_records", return_value=[]
+        ),
     ):
         with pytest.raises(RuntimeError, match="interrupted"):
             import_database(options)
@@ -74,8 +82,10 @@ def test_completed_checkpoint_does_not_launch_browser(options: ImportOptions):
         for postcode in options.postcodes:
             save_batch(db, {"postcode": postcode, "results": []})
     with (
-        patch("church_finder_scraper.archdiocese.importer.sync_playwright") as playwright,
-        patch("church_finder_scraper.archdiocese.importer.fetch_osm_records", return_value=[]),
+        patch("church_finder_scraper.austria.archdiocese.importer.sync_playwright") as playwright,
+        patch(
+            "church_finder_scraper.austria.archdiocese.importer.fetch_osm_records", return_value=[]
+        ),
     ):
         import_database(options)
     playwright.assert_not_called()

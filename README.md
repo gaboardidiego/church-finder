@@ -6,6 +6,8 @@ Find church services in Vienna by day, language and location.
 
 The standalone Python tools are in [`scraper/`](scraper/). From that directory, run
 `uv sync --group dev` and `uv run pytest`; see its README for CLI commands and quality checks.
+The scraper commands accept `--country austria` (the default); their current sources cover
+Vienna and the Archdiocese of Vienna, not all of Austria.
 
 ## Run the website
 

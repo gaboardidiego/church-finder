@@ -10,12 +10,15 @@ from .fetch import fetch_records
 from .records import write_csv, write_json
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(
+    argv: list[str] | None = None, *, parent_parser: argparse.ArgumentParser | None = None
+) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
+        parents=[parent_parser] if parent_parser else [],
         description=(
             "Fetch Christian places of worship and church buildings within Vienna's "
             "administrative boundary from OpenStreetMap."
-        )
+        ),
     )
     parser.add_argument(
         "--format",
@@ -45,11 +48,13 @@ def parse_args() -> argparse.Namespace:
         default=2,
         help="retries per Overpass instance for transient failures (default: 2)",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
-def main() -> int:
-    args = parse_args()
+def run(
+    argv: list[str] | None = None, *, parent_parser: argparse.ArgumentParser | None = None
+) -> int:
+    args = parse_args(argv, parent_parser=parent_parser)
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",

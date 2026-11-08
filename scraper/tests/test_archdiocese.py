@@ -6,8 +6,8 @@ import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
-from church_finder_scraper import osm as osm_importer
-from church_finder_scraper.archdiocese import (
+from church_finder_scraper.austria import osm as osm_importer
+from church_finder_scraper.austria.archdiocese import (
     Client,
     build_database,
     candidate_postcodes,
@@ -19,7 +19,7 @@ from church_finder_scraper.archdiocese import (
     service_key,
     start_session,
 )
-from church_finder_scraper.osm import fetch as osm_fetch
+from church_finder_scraper.austria.osm import fetch as osm_fetch
 
 FORM = """
 <form id="site_search_gottesdienste" action="/site/search">
@@ -190,7 +190,7 @@ class Tests(unittest.TestCase):
     def test_request_retries_transient_errors(self):
         context = type("Context", (), {"request": RetryRequest()})()
         client = Client(context, "site", "token", 0)
-        with patch("church_finder_scraper.archdiocese.client.time.sleep"):
+        with patch("church_finder_scraper.austria.archdiocese.client.time.sleep"):
             response = client.request("GET", "https://example.test/search")
         self.assertTrue(response.ok)
         self.assertEqual(client.request_count, 2)

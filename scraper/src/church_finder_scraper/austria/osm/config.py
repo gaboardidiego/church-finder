@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from ..paths import PROJECT_ROOT
+from ...paths import PROJECT_ROOT
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
