@@ -163,6 +163,30 @@ class Tests(unittest.TestCase):
             ],
         )
 
+    def test_skip_language_searches(self):
+        context = type("Context", (), {"request": FakeRequest()})()
+        client = Client(context, "site", "token", 0)
+        results = client.postcode("1010", False)
+        self.assertEqual(results[0]["services"][0]["language"], "Unknown")
+        self.assertEqual(client.request_count, 2)
+
+    def test_filtered_service_must_exist_in_baseline(self):
+        class ChangedRequest(FakeRequest):
+            def __init__(self):
+                super().__init__()
+                self.service_calls = 0
+
+            def fetch(self, url, method, timeout, **kwargs):
+                if "xhr_dates_for_coid" in url:
+                    self.service_calls += 1
+                    row = ROW if self.service_calls == 1 else {**ROW, "uhrzeit": "13:00:00"}
+                    return Response({"0": row, "html": ""})
+                return super().fetch(url, method, timeout, **kwargs)
+
+        context = type("Context", (), {"request": ChangedRequest()})()
+        with self.assertRaisesRegex(ValueError, "Filtered service not in baseline"):
+            Client(context, "site", "token", 0).postcode("1010", True)
+
     def test_request_retries_transient_errors(self):
         context = type("Context", (), {"request": RetryRequest()})()
         client = Client(context, "site", "token", 0)

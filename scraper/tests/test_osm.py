@@ -2,7 +2,11 @@ import csv
 import json
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import HTTPError, URLError
 
+import pytest
+
+from church_finder_scraper.osm.config import FALLBACK_OVERPASS_URLS
 from church_finder_scraper.osm.fetch import fetch_elements, fetch_records
 from church_finder_scraper.osm.records import make_record, write_csv, write_json
 
@@ -65,3 +69,38 @@ def test_record_conversion_and_output_formats(tmp_path: Path):
         csv_record = next(csv.DictReader(stream))
     assert json.loads(csv_record["tags"])["name"] == "Kirche"
     assert json.loads(json_path.read_text(encoding="utf-8"))["results"] == [record]
+
+
+def test_fetch_retries_transient_errors():
+    with (
+        patch(
+            "church_finder_scraper.osm.fetch.urlopen",
+            side_effect=[URLError("unavailable"), Response({"elements": []})],
+        ) as request,
+        patch("church_finder_scraper.osm.fetch.time.sleep") as sleep,
+    ):
+        assert fetch_elements("https://overpass.example", 10, 1) == []
+    assert request.call_count == 2
+    sleep.assert_called_once_with(1)
+
+
+def test_fetch_does_not_retry_permanent_http_error():
+    error = HTTPError("https://overpass.example", 403, "forbidden", None, None)
+    with (
+        patch("church_finder_scraper.osm.fetch.urlopen", side_effect=error) as request,
+        pytest.raises(RuntimeError, match="HTTP 403"),
+    ):
+        fetch_elements("https://overpass.example", 10, 2)
+    assert request.call_count == 1
+
+
+def test_fetch_records_falls_back_to_another_endpoint():
+    with patch(
+        "church_finder_scraper.osm.fetch.fetch_elements",
+        side_effect=[RuntimeError("unavailable"), []],
+    ) as fetch:
+        assert fetch_records("https://overpass.example", 10, 0) == []
+    assert [call.args[0] for call in fetch.call_args_list] == [
+        "https://overpass.example",
+        FALLBACK_OVERPASS_URLS[0],
+    ]

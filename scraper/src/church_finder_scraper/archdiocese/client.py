@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from collections import Counter
 from typing import Any, TypedDict
 from urllib.parse import urlsplit
 
@@ -82,59 +83,13 @@ class Client:
                 church["name"],
                 church["id"],
             )
-            response = self.request(
-                "POST",
-                dates_url,
-                form={
-                    "coid": church["id"],
-                    "addr": church["marker_addr"],
-                },
-            )
             records[identity] = {
                 "church": church,
-                "rows": parse_services(response.json(), church["id"]),
+                "rows": self._service_rows(dates_url, church),
                 "matches": {},
             }
         if use_languages:
-            for language_index, language in enumerate(languages, start=1):
-                LOG.info(
-                    "%s: checking language %d/%d: %s",
-                    postcode,
-                    language_index,
-                    len(languages),
-                    language,
-                )
-                form = {**defaults, "gd_plz": postcode, "sprache": language}
-                filtered_html = self.request("POST", action, form=form).text()
-                filtered, _, _, _ = parse_search(filtered_html)
-                LOG.info(
-                    "%s: language %s matched %d church result(s)", postcode, language, len(filtered)
-                )
-                for church in filtered:
-                    identity = (church["id"], church["marker_addr"])
-                    if identity not in records:
-                        raise ValueError(f"Filtered search returned an unknown church: {identity}")
-                    data = self.request(
-                        "POST",
-                        dates_url,
-                        form={
-                            "coid": church["id"],
-                            "addr": church["marker_addr"],
-                        },
-                    ).json()
-                    rows = parse_services(data, church["id"])
-                    entry = records[identity]
-                    baseline = {service_key(row) for row in entry["rows"]}
-                    filtered_counts = {}
-                    for row in rows:
-                        key = service_key(row)
-                        filtered_counts[key] = filtered_counts.get(key, 0) + 1
-                    for row in rows:
-                        key = service_key(row)
-                        if key not in baseline:
-                            raise ValueError(f"Filtered service not in baseline for {identity}")
-                        if filtered_counts[key] == 1:
-                            entry["matches"].setdefault(key, set()).add(language)
+            self._match_languages(postcode, action, defaults, dates_url, languages, records)
         return [
             {
                 "church": entry["church"],
@@ -142,3 +97,46 @@ class Client:
             }
             for entry in records.values()
         ]
+
+    def _service_rows(self, dates_url: str, church: dict) -> list[dict]:
+        response = self.request(
+            "POST", dates_url, form={"coid": church["id"], "addr": church["marker_addr"]}
+        )
+        return parse_services(response.json(), church["id"])
+
+    def _match_languages(
+        self,
+        postcode: str,
+        action: str,
+        defaults: dict[str, str],
+        dates_url: str,
+        languages: list[str],
+        records: dict[tuple[str, str], ServiceEntry],
+    ) -> None:
+        for language_index, language in enumerate(languages, start=1):
+            LOG.info(
+                "%s: checking language %d/%d: %s",
+                postcode,
+                language_index,
+                len(languages),
+                language,
+            )
+            form = {**defaults, "gd_plz": postcode, "sprache": language}
+            filtered_html = self.request("POST", action, form=form).text()
+            filtered, _, _, _ = parse_search(filtered_html)
+            LOG.info(
+                "%s: language %s matched %d church result(s)", postcode, language, len(filtered)
+            )
+            for church in filtered:
+                identity = (church["id"], church["marker_addr"])
+                if identity not in records:
+                    raise ValueError(f"Filtered search returned an unknown church: {identity}")
+                rows = self._service_rows(dates_url, church)
+                entry = records[identity]
+                baseline = {service_key(row) for row in entry["rows"]}
+                filtered_counts = Counter(service_key(row) for row in rows)
+                for key, count in filtered_counts.items():
+                    if key not in baseline:
+                        raise ValueError(f"Filtered service not in baseline for {identity}")
+                    if count == 1:
+                        entry["matches"].setdefault(key, set()).add(language)

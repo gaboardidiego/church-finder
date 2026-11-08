@@ -1,5 +1,8 @@
 import json
 from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 
 from church_finder_scraper.archdiocese.publish import publish_database
 
@@ -39,3 +42,21 @@ def test_publish_database_without_previous_version(tmp_path: Path):
     assert new_counts == (0, 0)
     assert backup_path is None
     assert destination.exists()
+
+
+def test_publish_restores_previous_database_after_copy_failure(tmp_path: Path):
+    source = tmp_path / "generated.json"
+    destination = tmp_path / "published.json"
+    source.write_text('{"churches":[],"services":{}}', encoding="utf-8")
+    destination.write_text('{"churches":[{}],"services":{}}', encoding="utf-8")
+    previous = destination.read_bytes()
+
+    with (
+        patch(
+            "church_finder_scraper.archdiocese.publish.shutil.copy2", side_effect=OSError("disk")
+        ),
+        pytest.raises(OSError, match="disk"),
+    ):
+        publish_database(source, destination, tmp_path / "backups")
+    assert destination.read_bytes() == previous
+    assert not list(tmp_path.glob("published.json.*"))

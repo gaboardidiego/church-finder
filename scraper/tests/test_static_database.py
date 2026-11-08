@@ -29,3 +29,31 @@ def test_build_database_rejects_missing_service_files(tmp_path: Path):
 
     with pytest.raises(SystemExit, match="No services.json"):
         build_database(churches, services_dir)
+
+
+@pytest.mark.parametrize(
+    ("content", "message"),
+    [
+        ("not json", "Invalid JSON"),
+        ("{}", "JSON array of churches"),
+        ("[null]", "not a JSON object"),
+        ("[{}]", "no non-empty uuid"),
+        ('[{"uuid":"one"},{"uuid":"one"}]', "Duplicate church uuid"),
+    ],
+)
+def test_build_database_rejects_invalid_churches(tmp_path: Path, content: str, message: str):
+    churches = tmp_path / "churches.json"
+    churches.write_text(content, encoding="utf-8")
+    with pytest.raises(SystemExit, match=message):
+        build_database(churches, tmp_path)
+
+
+def test_build_database_rejects_duplicate_service_files(tmp_path: Path):
+    churches = tmp_path / "churches.json"
+    churches.write_text('[{"uuid":"one"}]', encoding="utf-8")
+    for location in ("first", "second"):
+        service_file = tmp_path / location / "one" / "services.json"
+        service_file.parent.mkdir(parents=True)
+        service_file.write_text("[]", encoding="utf-8")
+    with pytest.raises(SystemExit, match="Multiple services.json"):
+        build_database(churches, tmp_path)

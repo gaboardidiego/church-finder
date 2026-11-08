@@ -5,6 +5,7 @@ import json
 import math
 import re
 import zipfile
+from collections import Counter
 from datetime import date
 from datetime import time as local_time
 from urllib.parse import urljoin
@@ -189,10 +190,7 @@ def parse_services(payload: object, church_id: str) -> list[dict]:
 
 
 def normalize_services(rows: list[dict], language_matches: dict[str, set[str]]) -> list[dict]:
-    counts: dict[str, int] = {}
-    for row in rows:
-        key = service_key(row)
-        counts[key] = counts.get(key, 0) + 1
+    counts = Counter(service_key(row) for row in rows)
     result = []
     for row in rows:
         key = service_key(row)
