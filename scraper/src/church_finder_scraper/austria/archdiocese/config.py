@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import uuid
 
-from ..paths import PROJECT_ROOT
+from ...paths import PROJECT_ROOT
 
 ROOT = PROJECT_ROOT
 
