@@ -2,7 +2,7 @@ import { initAnalytics, trackEvent } from './analytics';
 import { loadChurches } from './data';
 import { formatMessage, isLocale, messages, resolveLocale } from './i18n';
 import { ALL_DENOMINATIONS, ALL_LANGUAGES, dateForDay, filterResults, toIsoDate } from './filters';
-import type { Church, Filters, Position } from './types';
+import type { Church, Filters, Position, Result } from './types';
 import { populateFilterOptions } from './ui/filter-options';
 import { renderResults, setActiveCard } from './ui/list';
 import { applyLocale, getSavedLocale, saveLocale } from './ui/locale';
@@ -30,7 +30,7 @@ const state: {
   churches: Church[];
   filters: Filters;
   origin: Position | null;
-  originLabel: 'yourPin' | 'yourLocation' | '';
+  originLabel: 'yourPin' | 'yourLocation' | 'yourApproximateLocation' | '';
   weekend: boolean;
 } = {
   churches: [],
@@ -45,30 +45,81 @@ const state: {
   weekend: false,
 };
 
+let dataLoaded = false;
+let dataLoadFailed = false;
+let locationRequest = 0;
+let locationStatus: 'locating' | 'geolocationUnsupported' | 'geolocationFailed' | null = null;
+let pendingChurchFocus: string | null = null;
+let pendingResultsFit = false;
+let currentResults: Result[] = [];
+
 const map = new ChurchMap($('#map'), {
   onPick: (position) => {
     trackEvent('pin_location');
+    locationRequest++;
     pickPosition(position);
   },
-  onSelect: (id) => setActiveCard(resultsEl, id, true),
+  onSelect: (id) => {
+    focusChurch(id);
+    setActiveCard(resultsEl, id, true);
+  },
 });
 
 function pickPosition(position: Position): void {
   setOrigin(position, 'yourPin');
 }
 
+function focusChurch(id: string): void {
+  const church = state.churches.find((item) => item.id === id);
+  if (!church) throw new Error(`Unknown church ${id}`);
+  const results = filterResults(
+    state.churches,
+    state.filters,
+    church.position,
+    state.weekend,
+    toIsoDate(new Date()),
+  );
+  if (locationStatus === 'locating') {
+    locationRequest++;
+    locationStatus = null;
+    updateStatus(results.length);
+  }
+  if (layoutEl.dataset.view === 'list') pendingChurchFocus = id;
+  else {
+    pendingChurchFocus = null;
+    pendingResultsFit = false;
+    map.fitToResults(results, church.position);
+  }
+}
+
 function setStatus(message: string): void {
   statusEl.textContent = message;
 }
 
-function setOrigin(position: Position | null, label: 'yourPin' | 'yourLocation', fit = true): void {
+function updateStatus(count: number): void {
+  if (dataLoadFailed) setStatus(messages[locale].loadFailed);
+  else if (locationStatus) setStatus(messages[locale][locationStatus]);
+  else if (state.origin && state.originLabel)
+    setStatus(
+      formatMessage(locale, 'sortedByDistance', { label: messages[locale][state.originLabel] }),
+    );
+  else setStatus(formatMessage(locale, count === 1 ? 'oneChurch' : 'noChurches', { count }));
+}
+
+function setOrigin(
+  position: Position | null,
+  label: 'yourPin' | 'yourLocation' | 'yourApproximateLocation',
+  fit = true,
+): void {
   state.origin = position;
   state.originLabel = position ? label : '';
+  locationStatus = null;
   map.setOrigin(position);
-  setStatus(
-    position ? formatMessage(locale, 'sortedByDistance', { label: messages[locale][label] }) : '',
-  );
-  refresh(fit);
+  if (dataLoaded) refresh(fit);
+  else {
+    if (fit) map.fitToResults([]);
+    updateStatus(0);
+  }
 }
 
 function refresh(fit = true): void {
@@ -80,6 +131,9 @@ function refresh(fit = true): void {
     state.weekend,
     toIsoDate(new Date()),
   );
+  currentResults = results;
+  if (pendingChurchFocus && !results.some(({ church }) => church.id === pendingChurchFocus))
+    pendingChurchFocus = null;
   renderResults(
     resultsEl,
     results,
@@ -87,7 +141,8 @@ function refresh(fit = true): void {
     {
       onHover: (id) => map.highlight(id),
       onSelect: (id) => {
-        map.highlight(id, true);
+        map.highlight(id);
+        focusChurch(id);
         setActiveCard(resultsEl, id, false);
       },
       onOpenWebsite: () => trackEvent('open_website'),
@@ -97,13 +152,14 @@ function refresh(fit = true): void {
     messages[locale],
   );
   map.setResults(results);
-  if (fit) map.fitToResults(results);
-  if (!state.origin)
-    setStatus(
-      formatMessage(locale, results.length === 1 ? 'oneChurch' : 'noChurches', {
-        count: results.length,
-      }),
-    );
+  if (fit) {
+    if (layoutEl.dataset.view === 'list') pendingResultsFit = true;
+    else {
+      pendingResultsFit = false;
+      map.fitToResults(results);
+    }
+  }
+  updateStatus(results.length);
 }
 
 function updateChips(active: string): void {
@@ -148,12 +204,6 @@ uiLanguageSelect.addEventListener('change', () => {
   applyLocale(locale);
   saveLocale(locale);
   populateFilters();
-  if (state.origin)
-    setStatus(
-      formatMessage(locale, 'sortedByDistance', {
-        label: state.originLabel ? messages[locale][state.originLabel] : '',
-      }),
-    );
   refresh(false);
 });
 nameInput.addEventListener('input', () => {
@@ -162,22 +212,50 @@ nameInput.addEventListener('input', () => {
 });
 nameInput.addEventListener('change', () => trackEvent('search_name'));
 
-$('#locate').addEventListener('click', () => {
-  trackEvent('use_location');
+function locate(): void {
+  const request = ++locationRequest;
   if (!navigator.geolocation) {
-    setStatus(messages[locale].geolocationUnsupported);
+    locationStatus = 'geolocationUnsupported';
+    updateStatus(0);
     return;
   }
-  setStatus(messages[locale].locating);
-  navigator.geolocation.getCurrentPosition(
+  locationStatus = 'locating';
+  updateStatus(0);
+  const success =
+    (cached: boolean): PositionCallback =>
     ({ coords }) => {
-      const position = { latitude: coords.latitude, longitude: coords.longitude };
-      setOrigin(position, 'yourLocation', false);
-      map.panTo(position);
-    },
-    () => setStatus(messages[locale].geolocationFailed),
-    { enableHighAccuracy: false, timeout: 10000 },
-  );
+      if (request !== locationRequest) return;
+      setOrigin(
+        { latitude: coords.latitude, longitude: coords.longitude },
+        cached || coords.accuracy > 1000 ? 'yourApproximateLocation' : 'yourLocation',
+      );
+    };
+  const fail: PositionErrorCallback = (error) => {
+    if (request !== locationRequest) return;
+    if (error.code !== 1) {
+      navigator.geolocation.getCurrentPosition(success(true), finishFailure, {
+        enableHighAccuracy: false,
+        maximumAge: 24 * 60 * 60 * 1000,
+        timeout: 5000,
+      });
+    } else finishFailure();
+  };
+  const finishFailure = (): void => {
+    if (request !== locationRequest) return;
+    locationStatus = 'geolocationFailed';
+    if (dataLoaded) refresh();
+    else updateStatus(0);
+  };
+  navigator.geolocation.getCurrentPosition(success(false), fail, {
+    enableHighAccuracy: false,
+    maximumAge: 60000,
+    timeout: 10000,
+  });
+}
+
+$('#locate').addEventListener('click', () => {
+  trackEvent('use_location');
+  locate();
 });
 
 document.querySelectorAll<HTMLElement>('.view-toggle button').forEach((button) =>
@@ -187,6 +265,11 @@ document.querySelectorAll<HTMLElement>('.view-toggle button').forEach((button) =
       .querySelectorAll('.view-toggle button')
       .forEach((b) => b.classList.toggle('active', b === button));
     map.invalidate();
+    if (layoutEl.dataset.view === 'map' && pendingChurchFocus) focusChurch(pendingChurchFocus);
+    else if (layoutEl.dataset.view === 'map' && pendingResultsFit) {
+      pendingResultsFit = false;
+      map.fitToResults(currentResults);
+    }
   }),
 );
 
@@ -196,16 +279,19 @@ async function start(): Promise<void> {
   uiLanguageSelect.value = locale;
   dateInput.value = state.filters.date ?? '';
   updateChips('today');
+  locate();
   try {
     state.churches = await loadChurches(
       `${import.meta.env.BASE_URL}data/churches_vienna.database.json`,
     );
   } catch {
-    setStatus(messages[locale].loadFailed);
+    dataLoadFailed = true;
+    updateStatus(0);
     return;
   }
+  dataLoaded = true;
   populateFilters();
-  refresh();
+  refresh(locationStatus !== 'locating');
 }
 
 function populateFilters(): void {

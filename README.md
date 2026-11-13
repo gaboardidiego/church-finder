@@ -18,6 +18,14 @@ npm install
 npm run dev
 ```
 
+On opening the site, the browser asks for location permission and may use GPS, Wi-Fi or network
+signals to estimate a location. The map frames the selected location and up to four nearest matching
+churches, even if they are far away. If no churches match the active filters, only the location is
+shown. Selecting a church frames its nearest matching churches without changing the distance origin.
+If location is unavailable it may retry with a cached location up to 24 hours old. If location remains
+unavailable or permission is denied, use the map to drop a pin instead. No separate IP-location
+service is used.
+
 ## Analytics
 
 [View analytics](https://church-finder.goatcounter.com/).

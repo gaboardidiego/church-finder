@@ -22,6 +22,7 @@ export const messages = {
     sortedByDistance: 'Sorted by distance from: {label}',
     yourPin: 'your pin',
     yourLocation: 'your location',
+    yourApproximateLocation: 'your approximate or cached location',
     geolocationUnsupported: 'Geolocation is not supported by your browser.',
     locating: 'Locating…',
     geolocationFailed: 'Could not get your location. Click the map to drop a pin instead.',
@@ -60,6 +61,7 @@ export const messages = {
     sortedByDistance: 'Sortiert nach Entfernung von: {label}',
     yourPin: 'deinem Pin',
     yourLocation: 'deinem Standort',
+    yourApproximateLocation: 'deinem ungefähren oder gespeicherten Standort',
     geolocationUnsupported: 'Dein Browser unterstützt keine Standortbestimmung.',
     locating: 'Standort wird ermittelt…',
     geolocationFailed:
@@ -100,6 +102,7 @@ export const messages = {
     sortedByDistance: 'Ordinate per distanza da: {label}',
     yourPin: 'il segnaposto',
     yourLocation: 'la tua posizione',
+    yourApproximateLocation: 'la tua posizione approssimativa o memorizzata',
     geolocationUnsupported: 'Il browser non supporta la geolocalizzazione.',
     locating: 'Ricerca della posizione…',
     geolocationFailed:

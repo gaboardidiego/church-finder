@@ -4,6 +4,7 @@ import { displayLanguage } from '../language';
 import type { Position, Result } from '../types';
 
 const NEAREST_WITH_PIN = 4;
+const LOCATION_ZOOM = 13;
 const AUSTRIA: L.LatLngTuple = [47.5162, 14.5501];
 
 // Default Leaflet icons break under bundlers, so use simple divIcons.
@@ -54,10 +55,6 @@ export class ChurchMap {
     this.map.invalidateSize();
   }
 
-  panTo(position: Position): void {
-    this.map.panTo([position.latitude, position.longitude]);
-  }
-
   setOrigin(position: Position | null): void {
     if (this.origin) {
       this.origin.remove();
@@ -100,28 +97,34 @@ export class ChurchMap {
     }
   }
 
-  fitToResults(results: Result[]): void {
-    // With a pin, frame it together with the nearest few churches (results are distance-sorted).
-    const points = results
-      .slice(0, this.origin ? NEAREST_WITH_PIN : results.length)
-      .map((r): L.LatLngTuple => [r.church.position.latitude, r.church.position.longitude]);
-    if (this.origin) {
-      const { lat, lng } = this.origin.getLatLng();
-      points.push([lat, lng]);
+  fitToResults(results: Result[], focus?: Position): void {
+    // Results are distance-sorted when framing a location.
+    const origin = focus ? L.latLng(focus.latitude, focus.longitude) : this.origin?.getLatLng();
+    const nearby = origin ? results.slice(0, NEAREST_WITH_PIN) : results;
+    const points = nearby.map((r): L.LatLngTuple => [
+      r.church.position.latitude,
+      r.church.position.longitude,
+    ]);
+    if (origin) {
+      if (points.length === 0) {
+        this.map.setView(origin, LOCATION_ZOOM);
+        return;
+      }
+      points.push([origin.lat, origin.lng]);
     }
-    if (points.length > 0)
+    if (points.length > 0) {
       this.map.fitBounds(L.latLngBounds(points), {
         padding: [30, 30],
-        maxZoom: this.origin ? 16 : 15,
+        maxZoom: origin ? 16 : 15,
+        animate: false,
       });
+    }
   }
 
-  highlight(id: string | null, pan = false): void {
+  highlight(id: string | null): void {
     for (const [key, marker] of this.markers) {
       marker.setIcon(churchIcon(key === id));
       marker.setZIndexOffset(key === id ? 500 : 0);
     }
-    const marker = id ? this.markers.get(id) : undefined;
-    if (marker && pan) this.map.panTo(marker.getLatLng());
   }
 }

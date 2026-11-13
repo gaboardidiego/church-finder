@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
     setResults: vi.fn(),
     fitToResults: vi.fn(),
     highlight: vi.fn(),
-    panTo: vi.fn(),
     invalidate: vi.fn(),
   },
   handlers: {
@@ -129,7 +128,7 @@ describe('application flow', () => {
       element<HTMLButtonElement>('.view-toggle [data-view="map"]').classList.contains('active'),
     ).toBe(true);
     expect(mocks.initAnalytics).toHaveBeenCalledOnce();
-    expect(element('#status').textContent).toBe('1 church');
+    expect(element('#status').textContent).toBe(messages.en.geolocationUnsupported);
     expect(element('#results').textContent).toContain('First Church');
     expect(element<HTMLInputElement>('#date').value).toBe(today);
     expect(element<HTMLSelectElement>('#language').options).toHaveLength(3);
@@ -185,12 +184,79 @@ describe('application flow', () => {
     element('.card').scrollIntoView = vi.fn();
     mocks.handlers.onSelect('first');
     expect(element('.card').classList.contains('active')).toBe(true);
+    expect(mocks.map.fitToResults).toHaveBeenLastCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ church: expect.objectContaining({ id: 'first' }) }),
+      ]),
+      position,
+    );
     element<HTMLElement>('.card').click();
-    expect(mocks.map.highlight).toHaveBeenCalledWith('first', true);
+    expect(mocks.map.highlight).toHaveBeenCalledWith('first');
+    expect(mocks.map.fitToResults).toHaveBeenLastCalledWith(expect.any(Array), position);
     element<HTMLButtonElement>('.view-toggle [data-view="map"]').click();
     expect(element('.layout').dataset.view).toBe('map');
     expect(mocks.map.invalidate).toHaveBeenCalledOnce();
     expect(mocks.trackEvent.mock.calls.flat()).not.toContain(position.latitude);
+  });
+
+  it('frames churches around the selected church without changing the distance origin', async () => {
+    await start();
+    element<HTMLButtonElement>('[data-day="any"]').click();
+    mocks.handlers.onPick({ latitude: 48.21, longitude: 16.31 });
+    expect((mocks.map.setResults.mock.lastCall?.[0] as Result[])[0]?.church.id).toBe('second');
+    mocks.map.setOrigin.mockClear();
+    element<HTMLElement>('.card[data-id="first"]').click();
+    const [results, focus] = mocks.map.fitToResults.mock.lastCall as [Result[], Position];
+    expect(focus).toEqual({ latitude: 48.2, longitude: 16.3 });
+    expect(results.map(({ church }) => church.id)).toEqual(['first', 'second']);
+    expect(mocks.map.setOrigin).not.toHaveBeenCalled();
+    expect(element('.card[data-id="first"]').classList.contains('active')).toBe(true);
+    expect(element('#status').textContent).toContain(messages.en.yourPin);
+  });
+
+  it('does not replace a church selection with a late location response', async () => {
+    let respond: PositionCallback | undefined;
+    const getCurrentPosition = vi.fn<Geolocation['getCurrentPosition']>((success) => {
+      respond = success;
+    });
+    vi.stubGlobal('navigator', { languages: ['en'], geolocation: { getCurrentPosition } });
+    await start();
+    element<HTMLElement>('.card').click();
+    respond?.({ coords: { latitude: 47, longitude: 15 } } as GeolocationPosition);
+    expect(mocks.map.setOrigin).not.toHaveBeenCalled();
+    expect(mocks.map.fitToResults.mock.lastCall?.[1]).toEqual({
+      latitude: 48.2,
+      longitude: 16.3,
+    });
+    expect(element('#status').textContent).toBe('1 church');
+  });
+
+  it('frames a church selected in list view once the map becomes visible', async () => {
+    await start();
+    element<HTMLButtonElement>('.view-toggle [data-view="list"]').click();
+    mocks.map.fitToResults.mockClear();
+    element<HTMLElement>('.card').click();
+    expect(mocks.map.fitToResults).not.toHaveBeenCalled();
+    element<HTMLButtonElement>('.view-toggle [data-view="map"]').click();
+    expect(mocks.map.invalidate).toHaveBeenCalledTimes(2);
+    expect(mocks.map.fitToResults).toHaveBeenLastCalledWith(expect.any(Array), {
+      latitude: 48.2,
+      longitude: 16.3,
+    });
+  });
+
+  it('discards a pending list selection if filters remove that church', async () => {
+    await start();
+    element<HTMLButtonElement>('.view-toggle [data-view="list"]').click();
+    element<HTMLElement>('.card').click();
+    change('#date', addDays(today, 1));
+    mocks.map.fitToResults.mockClear();
+    element<HTMLButtonElement>('.view-toggle [data-view="map"]').click();
+    expect(mocks.map.fitToResults).toHaveBeenLastCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ church: expect.objectContaining({ id: 'second' }) }),
+      ]),
+    );
   });
 
   it('restores a saved locale on startup and translates the distance status on change', async () => {
@@ -206,28 +272,115 @@ describe('application flow', () => {
     );
   });
 
-  it('uses the browser location and reports a location failure', async () => {
-    let succeed = true;
-    const getCurrentPosition = vi.fn<Geolocation['getCurrentPosition']>((success, failure) => {
-      if (succeed) {
-        success({ coords: { latitude: 48.2, longitude: 16.3 } } as GeolocationPosition);
-      } else {
-        failure?.({} as GeolocationPositionError);
-      }
+  it('requests a network-capable location on startup and frames nearby results', async () => {
+    const position = { latitude: 48.2, longitude: 16.3 };
+    const getCurrentPosition = vi.fn<Geolocation['getCurrentPosition']>((success) =>
+      success({ coords: position } as GeolocationPosition),
+    );
+    vi.stubGlobal('navigator', { languages: ['en'], geolocation: { getCurrentPosition } });
+    await start();
+    expect(mocks.map.setOrigin).toHaveBeenCalledWith(position);
+    expect(mocks.map.fitToResults.mock.lastCall?.[0][0].church.id).toBe('first');
+    expect(element('#status').textContent).toContain(messages.en.yourLocation);
+    expect(getCurrentPosition).toHaveBeenCalledWith(expect.any(Function), expect.any(Function), {
+      enableHighAccuracy: false,
+      maximumAge: 60000,
+      timeout: 10000,
+    });
+    expect(mocks.trackEvent).not.toHaveBeenCalledWith('use_location');
+    element<HTMLButtonElement>('#locate').click();
+    expect(mocks.trackEvent).toHaveBeenCalledWith('use_location');
+  });
+
+  it('tries a cached approximate location after a positioning failure', async () => {
+    const getCurrentPosition = vi
+      .fn<Geolocation['getCurrentPosition']>()
+      .mockImplementationOnce((_success, failure) =>
+        failure?.({ code: 2 } as GeolocationPositionError),
+      )
+      .mockImplementationOnce((success) =>
+        success({ coords: { latitude: 48.2, longitude: 16.3 } } as GeolocationPosition),
+      );
+    vi.stubGlobal('navigator', { languages: ['en'], geolocation: { getCurrentPosition } });
+    await start();
+    expect(getCurrentPosition).toHaveBeenCalledTimes(2);
+    expect(getCurrentPosition.mock.calls[1]?.[2]).toEqual({
+      enableHighAccuracy: false,
+      maximumAge: 24 * 60 * 60 * 1000,
+      timeout: 5000,
+    });
+    expect(element('#status').textContent).toContain(messages.en.yourApproximateLocation);
+  });
+
+  it('labels low-accuracy browser locations as approximate', async () => {
+    const getCurrentPosition = vi.fn<Geolocation['getCurrentPosition']>((success) =>
+      success({
+        coords: { latitude: 48.2, longitude: 16.3, accuracy: 1500 },
+      } as GeolocationPosition),
+    );
+    vi.stubGlobal('navigator', { languages: ['en'], geolocation: { getCurrentPosition } });
+    await start();
+    expect(element('#status').textContent).toContain(messages.en.yourApproximateLocation);
+  });
+
+  it('reports denied permission without retrying or hiding the failure after data loads', async () => {
+    const getCurrentPosition = vi.fn<Geolocation['getCurrentPosition']>((_success, failure) =>
+      failure?.({ code: 1 } as GeolocationPositionError),
+    );
+    vi.stubGlobal('navigator', { languages: ['en'], geolocation: { getCurrentPosition } });
+    await start();
+    expect(getCurrentPosition).toHaveBeenCalledOnce();
+    expect(element('#status').textContent).toBe(messages.en.geolocationFailed);
+  });
+
+  it('reports failure when both location attempts fail', async () => {
+    const getCurrentPosition = vi.fn<Geolocation['getCurrentPosition']>((_success, failure) =>
+      failure?.({ code: 2 } as GeolocationPositionError),
+    );
+    vi.stubGlobal('navigator', { languages: ['en'], geolocation: { getCurrentPosition } });
+    await start();
+    expect(getCurrentPosition).toHaveBeenCalledTimes(2);
+    expect(element('#status').textContent).toBe(messages.en.geolocationFailed);
+  });
+
+  it('does not replace a manually selected pin with a late location response', async () => {
+    let respond: PositionCallback | undefined;
+    const getCurrentPosition = vi.fn<Geolocation['getCurrentPosition']>((success) => {
+      respond = success;
+    });
+    vi.stubGlobal('navigator', { languages: ['en'], geolocation: { getCurrentPosition } });
+    await start();
+    const pin = { latitude: 47, longitude: 15 };
+    mocks.handlers.onPick(pin);
+    respond?.({ coords: { latitude: 48.2, longitude: 16.3 } } as GeolocationPosition);
+    expect(mocks.map.setOrigin).toHaveBeenLastCalledWith(pin);
+    expect(element('#status').textContent).toContain(messages.en.yourPin);
+  });
+
+  it('fits results when location arrives after the data', async () => {
+    let respond: PositionCallback | undefined;
+    const getCurrentPosition = vi.fn<Geolocation['getCurrentPosition']>((success) => {
+      respond = success;
+    });
+    vi.stubGlobal('navigator', { languages: ['en'], geolocation: { getCurrentPosition } });
+    await start();
+    expect(mocks.map.fitToResults).not.toHaveBeenCalled();
+    respond?.({ coords: { latitude: 48.2, longitude: 16.3 } } as GeolocationPosition);
+    expect(mocks.map.fitToResults.mock.lastCall?.[0][0].church.id).toBe('first');
+    expect(element('#status').textContent).toContain(messages.en.yourLocation);
+  });
+
+  it('ignores a startup location response after a newer manual request', async () => {
+    const callbacks: PositionCallback[] = [];
+    const getCurrentPosition = vi.fn<Geolocation['getCurrentPosition']>((success) => {
+      callbacks.push(success);
     });
     vi.stubGlobal('navigator', { languages: ['en'], geolocation: { getCurrentPosition } });
     await start();
     element<HTMLButtonElement>('#locate').click();
-    expect(mocks.map.panTo).toHaveBeenCalledWith({ latitude: 48.2, longitude: 16.3 });
-    expect(element('#status').textContent).toContain(messages.en.yourLocation);
-    expect(getCurrentPosition).toHaveBeenCalledWith(expect.any(Function), expect.any(Function), {
-      enableHighAccuracy: false,
-      timeout: 10000,
-    });
-    succeed = false;
-    element<HTMLButtonElement>('#locate').click();
-    expect(element('#status').textContent).toBe(messages.en.geolocationFailed);
-    expect(mocks.trackEvent).toHaveBeenCalledWith('use_location');
+    callbacks[1]?.({ coords: { latitude: 47, longitude: 15 } } as GeolocationPosition);
+    callbacks[0]?.({ coords: { latitude: 48, longitude: 16 } } as GeolocationPosition);
+    expect(mocks.map.setOrigin).toHaveBeenLastCalledWith({ latitude: 47, longitude: 15 });
   });
 
   it('reports unsupported geolocation', async () => {
