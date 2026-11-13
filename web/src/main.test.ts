@@ -97,6 +97,31 @@ afterEach(() => {
 });
 
 describe('application flow', () => {
+  it('hides unknown language options and labels while retaining services', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ...database,
+          services: {
+            ...database.services,
+            first: [
+              { date: today, start_time: '09:00' },
+              { date: today, start_time: '10:00', language: 'German' },
+            ],
+          },
+        }),
+      }),
+    );
+    await start();
+    expect(element('#language').textContent).not.toContain('Unknown');
+    expect(element('#results').textContent).not.toContain('Unknown');
+    expect(element('#results').textContent).toContain('09:00');
+    expect(element('#results').textContent).toContain('10:00 · German');
+    expect(element<HTMLSelectElement>('#language').options).toHaveLength(2);
+  });
+
   it('loads data and combines search, day, language and denomination filters', async () => {
     await start();
     expect(element('.layout').dataset.view).toBe('map');

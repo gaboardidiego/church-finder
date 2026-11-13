@@ -1,3 +1,5 @@
+"""Publish a completed database and back up the previous version."""
+
 from __future__ import annotations
 
 import json
@@ -22,34 +24,32 @@ def _database_counts(path: Path) -> tuple[int, int]:
 
 
 def publish_database(
-    source: Path, destination: Path, backup_dir: Path
+    database: dict, destination: Path, backup_dir: Path
 ) -> tuple[tuple[int, int] | None, tuple[int, int], Path | None]:
-    new_counts = _database_counts(source)
-    previous_counts = _database_counts(destination) if destination.exists() else None
-    backup_path = None
-
     destination.parent.mkdir(parents=True, exist_ok=True)
-    if previous_counts is not None:
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
-        backup_path = backup_dir / f"{destination.stem}.{timestamp}{destination.suffix}"
-        destination.replace(backup_path)
-
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
             dir=destination.parent,
             prefix=destination.name + ".",
             delete=False,
         ) as handle:
             temporary = Path(handle.name)
-        shutil.copy2(source, temporary)
+            json.dump(database, handle, ensure_ascii=False, separators=(",", ":"))
+            handle.write("\n")
+
+        new_counts = _database_counts(temporary)
+        previous_counts = _database_counts(destination) if destination.exists() else None
+        backup_path = None
+        if previous_counts is not None:
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
+            backup_path = backup_dir / f"{destination.stem}.{timestamp}{destination.suffix}"
+            shutil.copy2(destination, backup_path)
+
         temporary.replace(destination)
-    except Exception:
-        if backup_path is not None:
-            destination.unlink(missing_ok=True)
-            backup_path.replace(destination)
-        raise
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)

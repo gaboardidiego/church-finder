@@ -4,11 +4,10 @@ from unittest.mock import patch
 
 import pytest
 
-from church_finder_scraper.austria.archdiocese.publish import publish_database
+from church_finder_scraper.austria.publish import publish_database
 
 
 def test_publish_database_moves_previous_version_to_backup(tmp_path: Path):
-    source = tmp_path / "generated.json"
     destination = tmp_path / "web" / "churches.json"
     backup_dir = tmp_path / "backups"
     previous = {"churches": [{"uuid": "old"}], "services": {"old": [{"date": "2026-01-01"}]}}
@@ -18,9 +17,7 @@ def test_publish_database_moves_previous_version_to_backup(tmp_path: Path):
     }
     destination.parent.mkdir(parents=True)
     destination.write_text(json.dumps(previous), encoding="utf-8")
-    source.write_text(json.dumps(current), encoding="utf-8")
-
-    old_counts, new_counts, backup_path = publish_database(source, destination, backup_dir)
+    old_counts, new_counts, backup_path = publish_database(current, destination, backup_dir)
 
     assert old_counts == (1, 1)
     assert new_counts == (2, 2)
@@ -30,12 +27,10 @@ def test_publish_database_moves_previous_version_to_backup(tmp_path: Path):
 
 
 def test_publish_database_without_previous_version(tmp_path: Path):
-    source = tmp_path / "generated.json"
     destination = tmp_path / "web" / "churches.json"
-    source.write_text(json.dumps({"churches": [], "services": {}}), encoding="utf-8")
 
     old_counts, new_counts, backup_path = publish_database(
-        source, destination, tmp_path / "backups"
+        {"churches": [], "services": {}}, destination, tmp_path / "backups"
     )
 
     assert old_counts is None
@@ -44,20 +39,58 @@ def test_publish_database_without_previous_version(tmp_path: Path):
     assert destination.exists()
 
 
-def test_publish_restores_previous_database_after_copy_failure(tmp_path: Path):
-    source = tmp_path / "generated.json"
+def test_publish_preserves_previous_database_after_backup_failure(tmp_path: Path):
     destination = tmp_path / "published.json"
-    source.write_text('{"churches":[],"services":{}}', encoding="utf-8")
     destination.write_text('{"churches":[{}],"services":{}}', encoding="utf-8")
     previous = destination.read_bytes()
 
     with (
         patch(
-            "church_finder_scraper.austria.archdiocese.publish.shutil.copy2",
+            "church_finder_scraper.austria.publish.shutil.copy2",
             side_effect=OSError("disk"),
         ),
         pytest.raises(OSError, match="disk"),
     ):
-        publish_database(source, destination, tmp_path / "backups")
+        publish_database({"churches": [], "services": {}}, destination, tmp_path / "backups")
     assert destination.read_bytes() == previous
     assert not list(tmp_path.glob("published.json.*"))
+
+
+def test_publish_preserves_previous_database_on_serialization_failure(tmp_path: Path):
+    destination = tmp_path / "published.json"
+    destination.write_text('{"churches":[{}],"services":{}}', encoding="utf-8")
+    previous = destination.read_bytes()
+
+    with pytest.raises(TypeError):
+        publish_database(
+            {"churches": [object()], "services": {}}, destination, tmp_path / "backups"
+        )
+    assert destination.read_bytes() == previous
+    assert list(tmp_path.iterdir()) == [destination]
+
+
+def test_publish_preserves_previous_database_on_replace_failure(tmp_path: Path):
+    destination = tmp_path / "published.json"
+    destination.write_text('{"churches":[{}],"services":{}}', encoding="utf-8")
+    previous = destination.read_bytes()
+    backup_dir = tmp_path / "backups"
+
+    with (
+        patch.object(Path, "replace", side_effect=OSError("disk")),
+        pytest.raises(OSError, match="disk"),
+    ):
+        publish_database({"churches": [], "services": {}}, destination, backup_dir)
+    assert destination.read_bytes() == previous
+    assert [path.read_bytes() for path in backup_dir.iterdir()] == [previous]
+    assert not list(tmp_path.glob("published.json.*"))
+
+
+def test_publish_rejects_invalid_database_before_backup(tmp_path: Path):
+    destination = tmp_path / "published.json"
+    destination.write_text('{"churches":[{}],"services":{}}', encoding="utf-8")
+    previous = destination.read_bytes()
+
+    with pytest.raises(ValueError, match="churches and services"):
+        publish_database({"churches": []}, destination, tmp_path / "backups")
+    assert destination.read_bytes() == previous
+    assert list(tmp_path.iterdir()) == [destination]

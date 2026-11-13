@@ -16,8 +16,6 @@ dev = [
 ]
 
 [project.scripts]
-churches-osm = "church_finder_scraper.cli:osm"
-churches-build-db = "church_finder_scraper.static_database_cli:main"
 churches-services = "church_finder_scraper.cli:services"
 
 [build-system]

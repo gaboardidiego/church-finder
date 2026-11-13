@@ -3,7 +3,7 @@ export type Locale = (typeof locales)[number];
 
 export const messages = {
   en: {
-    scopeAlert: 'Currently, only results from Vienna, Austria are listed.',
+    scopeAlert: 'Church-service listings from across Austria are shown.',
     churchName: 'Church name…',
     useLocation: '◎ Use my location',
     today: 'Today',
@@ -36,12 +36,12 @@ export const messages = {
     moreChurches: '+{count} churches',
     website: 'Website',
     directions: 'Directions',
-    title: 'Church Finder Vienna – Church Services, Mass Times & Liturgies',
+    title: 'Church Finder Austria – Church Services, Mass Times & Liturgies',
     description:
-      'Find church services in Vienna (Wien): Catholic masses, Orthodox liturgies and Protestant services by day, language and location, with times and map.',
+      'Find church services across Austria by day, language and location, with times and map.',
   },
   de: {
-    scopeAlert: 'Derzeit werden nur Ergebnisse aus Wien, Österreich angezeigt.',
+    scopeAlert: 'Gottesdienste aus ganz Österreich werden angezeigt.',
     churchName: 'Kirchenname…',
     useLocation: '◎ Meinen Standort verwenden',
     today: 'Heute',
@@ -76,12 +76,12 @@ export const messages = {
     moreChurches: '+{count} Kirchen',
     website: 'Website',
     directions: 'Route',
-    title: 'Church Finder Vienna – Gottesdienste, Messen & Liturgien',
+    title: 'Church Finder Österreich – Gottesdienste, Messen & Liturgien',
     description:
-      'Finde Gottesdienste in Wien: katholische Messen, orthodoxe Liturgien und evangelische Gottesdienste nach Tag, Sprache und Standort, mit Uhrzeiten und Karte.',
+      'Finde Gottesdienste in ganz Österreich nach Tag, Sprache und Standort, mit Uhrzeiten und Karte.',
   },
   it: {
-    scopeAlert: 'Al momento sono mostrati solo i risultati di Vienna, Austria.',
+    scopeAlert: 'Sono mostrati gli orari delle funzioni religiose in tutta l’Austria.',
     churchName: 'Nome della chiesa…',
     useLocation: '◎ Usa la mia posizione',
     today: 'Oggi',
@@ -115,9 +115,9 @@ export const messages = {
     moreChurches: '+{count} chiese',
     website: 'Sito web',
     directions: 'Indicazioni',
-    title: 'Church Finder Vienna – Celebrazioni, messe e liturgie',
+    title: 'Church Finder Austria – Celebrazioni, messe e liturgie',
     description:
-      'Trova le celebrazioni a Vienna: messe cattoliche, liturgie ortodosse e celebrazioni protestanti per giorno, lingua e posizione, con orari e mappa.',
+      'Trova le celebrazioni in tutta l’Austria per giorno, lingua e posizione, con orari e mappa.',
   },
 } as const;
 

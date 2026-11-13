@@ -4,9 +4,9 @@ Project guide for Church Finder.
 
 ## Project layout
 
-- `web/` is the static, frontend-only Vienna site, built with Vite, TypeScript and Leaflet.
-- `scripts/` contains Python tools for fetching church and service data and preparing JSON databases.
-- `data/` holds local generated/input data and is ignored by Git; it is not loaded by the website.
+- `web/` is the static, frontend-only Austria site, built with Vite, TypeScript and Leaflet.
+- `scripts/` contains convenience scripts for checks and local website preview.
+- `.scraper-state/` holds local checkpoints and is ignored by Git.
 - The site uses OpenStreetMap tiles and GoatCounter analytics. It has no backend.
 
 ## Website commands
@@ -19,7 +19,6 @@ Run from `web/`:
 | `npm run dev` | Start the Vite development server |
 | `npm run check` | Run formatting check, ESLint, TypeScript and Vitest |
 | `npm run build` | Typecheck and create the production build in `../docs/` |
-| `npm run sync-data` | Copy the generated filtered database into `public/data/` |
 | `npm run deploy` | Build the site into the repository's `docs/` directory |
 
 Always run `npm run check` before finishing a website change. CI also runs `npm run build`. To
@@ -45,13 +44,10 @@ data limitations.
 
 ## Website data
 
-- The website loads `web/public/data/churches_vienna.database.json`; do not load files from `data/`
-  at runtime.
-- `npm run sync-data` copies `data/databases/churches_vienna_filtered.database.json` to the
-  website. That source is local and ignored by Git.
-- `scraper/src/church_finder_scraper/static_database.py` assembles a database from a church list
-  and per-church `services.json` files. The Archdiocese importer writes the website's compact
-  schema directly.
+- The website loads `web/public/data/churches_vienna.database.json`; the legacy filename is kept
+  for URL compatibility, while the published data covers Austria.
+- The Austria services importer uses Gottesdienst.at, enriches websites from OpenStreetMap,
+  and publishes the compact database directly to the website, backing up its previous version.
 - Schema: `{ churches: [{ uuid, name, website, position: { latitude, longitude }, religion, denomination }], services: { [uuid]: [{ language, start_time, date }] } }`.
 - Services may be empty. `web/src/data.ts` skips unusable entries and supplies "Unnamed church"
   when a name is missing.
@@ -77,8 +73,7 @@ Keep logic in pure functions where practical and add tests in adjacent `*.test.t
 - Existing events include `search_name`, `use_location`, `pin_location`, `filter_day_*`,
   `filter_date`, `filter_language`, `filter_denomination`, `open_website` and `open_google_maps`.
 
-## City scope
+## Geographic scope
 
-The website and OSM fetcher currently target Vienna. The website data URL is in
-`web/src/main.ts`, and the default map center is in `web/src/ui/map.ts`; both are currently
-Vienna-specific.
+The website and service importer, including its OSM website enrichment, cover Austria.
+The website data URL is in `web/src/main.ts`, and the default map center is Austria.

@@ -74,6 +74,18 @@ describe('result cards', () => {
     expect(card.classList.contains('active')).toBe(false);
   });
 
+  it('omits unknown languages without hiding service times or dates', () => {
+    const unknown = { date: '2026-10-24', startTime: '10:00', language: 'Unknown' };
+    expect(serviceLabel(unknown, false, 'en')).toBe('10:00');
+    expect(serviceLabel(unknown, true, 'en')).toContain('24 Oct · 10:00');
+    expect(serviceLabel({ ...unknown, startTime: '' }, false, 'en')).toBe('');
+    const rendered = setup([
+      { ...result, services: [unknown, { ...unknown, startTime: '', language: 'unknown' }] },
+    ]).container;
+    expect(rendered.querySelectorAll('.chip')).toHaveLength(1);
+    expect(rendered.querySelector('.chip')?.textContent).toBe('10:00');
+  });
+
   it('handles empty results, missing services and unsafe website URLs', () => {
     const { container } = setup([]);
     expect(container.textContent).toBe(messages.en.noServices);

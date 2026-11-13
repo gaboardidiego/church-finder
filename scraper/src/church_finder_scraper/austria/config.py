@@ -3,19 +3,10 @@ from __future__ import annotations
 import logging
 import uuid
 
-from ...paths import PROJECT_ROOT
-
-ROOT = PROJECT_ROOT
-
-SOURCE = "https://www.erzdioezese-wien.at/site/gottesdienstsuche"
-
-POSTCODES = "https://download.geonames.org/export/zip/AT.zip"
-
-POPUP = "https://www.erzdioezese-wien.at/site/cust_edwnews_gottesdienste_search_popup.siteswift"
-
-NAMESPACE = uuid.UUID("cc91fc06-05af-4f90-bd7d-5df3a8b0462f")
-
-LOG = logging.getLogger("erzdioezese")
+SOURCE = "https://www.gottesdienst.at/in-ihrer-naehe"
+POPUP = "https://www.gottesdienst.at/site/gottesdienstsuche_search_popup.siteswift"
+NAMESPACE = uuid.UUID("c20250d9-09f5-4db4-b231-ecbe05d54f0d")
+LOG = logging.getLogger("gottesdienst_at")
 
 LANGUAGES = {
     "Deutsch": "German",
@@ -56,5 +47,3 @@ LANGUAGES = {
     "Tschechisch": "Czech",
     "Vietnamesisch": "Vietnamese",
 }
-
-OSM_WEBSITE_TOLERANCE_METERS = 50

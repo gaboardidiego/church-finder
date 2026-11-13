@@ -86,6 +86,21 @@ describe('filters', () => {
 
   it('collects languages', () => {
     expect(collectLanguages(churches)).toEqual(['English', 'German']);
+    const withUnknown = [
+      ...churches,
+      make('unknown', 'Unknown language', 48.2, [
+        { date: '2026-10-24', startTime: '12:00', language: 'Unknown' },
+        { date: '2026-10-24', startTime: '13:00', language: 'unknown' },
+      ]),
+    ];
+    expect(collectLanguages(withUnknown)).toEqual(['English', 'German']);
+    expect(
+      applyFilters(
+        withUnknown,
+        { query: '', date: '2026-10-24', language: ALL_LANGUAGES, denomination: '' },
+        null,
+      ).map((result) => result.church.id),
+    ).toContain('unknown');
   });
 
   it('computes dates', () => {

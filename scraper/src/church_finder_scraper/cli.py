@@ -7,8 +7,7 @@ from importlib import import_module
 
 COUNTRY_MODULES = {
     "austria": {
-        "osm": "church_finder_scraper.austria.osm.cli",
-        "services": "church_finder_scraper.austria.archdiocese.cli",
+        "services": "church_finder_scraper.austria.cli",
     },
 }
 
@@ -28,10 +27,6 @@ def dispatch(command: str, argv: list[str] | None = None) -> int:
     parser.set_defaults(country=args.country)
     module = import_module(COUNTRY_MODULES[args.country][command])
     return module.run(remaining, parent_parser=parser)
-
-
-def osm() -> int:
-    return dispatch("osm")
 
 
 def services() -> int:

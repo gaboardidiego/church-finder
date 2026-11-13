@@ -1,9 +1,10 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { displayLanguage } from '../language';
 import type { Position, Result } from '../types';
 
 const NEAREST_WITH_PIN = 4;
-const VIENNA: L.LatLngTuple = [48.2082, 16.3738];
+const AUSTRIA: L.LatLngTuple = [47.5162, 14.5501];
 
 // Default Leaflet icons break under bundlers, so use simple divIcons.
 const CROSS =
@@ -38,7 +39,7 @@ export class ChurchMap {
     element: HTMLElement,
     private handlers: MapHandlers,
   ) {
-    this.map = L.map(element).setView(VIENNA, 12);
+    this.map = L.map(element).setView(AUSTRIA, 7);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -84,14 +85,13 @@ export class ChurchMap {
       const title = document.createElement('strong');
       title.textContent = church.name;
       popup.append(title);
-      if (services.length > 0) {
+      const serviceLabels = services
+        .map((s) => [s.startTime, displayLanguage(s.language)].filter(Boolean).join(' '))
+        .filter(Boolean)
+        .slice(0, 4);
+      if (serviceLabels.length > 0) {
         popup.append(document.createElement('br'));
-        popup.append(
-          services
-            .slice(0, 4)
-            .map((s) => `${s.startTime} ${s.language}`)
-            .join(' · '),
-        );
+        popup.append(serviceLabels.join(' · '));
       }
       marker.bindPopup(popup);
       marker.on('click', () => this.handlers.onSelect(church.id));
@@ -103,7 +103,7 @@ export class ChurchMap {
   fitToResults(results: Result[]): void {
     // With a pin, frame it together with the nearest few churches (results are distance-sorted).
     const points = results
-      .slice(0, this.origin ? NEAREST_WITH_PIN : 30)
+      .slice(0, this.origin ? NEAREST_WITH_PIN : results.length)
       .map((r): L.LatLngTuple => [r.church.position.latitude, r.church.position.longitude]);
     if (this.origin) {
       const { lat, lng } = this.origin.getLatLng();

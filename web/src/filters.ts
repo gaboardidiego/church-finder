@@ -1,4 +1,5 @@
 import { haversineKm } from './geo';
+import { displayLanguage } from './language';
 import type { Church, Filters, Position, Result } from './types';
 
 export const ALL_LANGUAGES = '';
@@ -61,7 +62,8 @@ export function filterResults(
 
 export function collectLanguages(churches: Church[]): string[] {
   const set = new Set<string>();
-  for (const church of churches) for (const s of church.services) set.add(s.language);
+  for (const church of churches)
+    for (const s of church.services) if (displayLanguage(s.language)) set.add(s.language);
   return [...set].sort((a, b) => a.localeCompare(b));
 }
 

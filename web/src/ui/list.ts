@@ -1,5 +1,6 @@
 import { formatDistance } from '../geo';
 import { formatMessage, type Locale, type Messages } from '../i18n';
+import { displayLanguage } from '../language';
 import type { Position, Result, Service } from '../types';
 
 const el = <K extends keyof HTMLElementTagNameMap>(
@@ -30,7 +31,7 @@ export function serviceLabel(service: Service, showDate: boolean, locale: Locale
   const parts = [
     showDate ? formatServiceDate(service.date, locale) : '',
     service.startTime,
-    service.language,
+    displayLanguage(service.language),
   ];
   return parts.filter(Boolean).join(' · ');
 }
@@ -86,11 +87,11 @@ export function renderResults(
     if (services.length === 0) {
       chips.append(el('span', 'muted', text.noServicesListed));
     } else {
-      for (const s of services.slice(0, 6))
-        chips.append(el('span', 'chip', serviceLabel(s, showDates, locale)));
-      if (services.length > 6)
+      const labels = services.map((s) => serviceLabel(s, showDates, locale)).filter(Boolean);
+      for (const label of labels.slice(0, 6)) chips.append(el('span', 'chip', label));
+      if (labels.length > 6)
         chips.append(
-          el('span', 'muted', formatMessage(locale, 'more', { count: services.length - 6 })),
+          el('span', 'muted', formatMessage(locale, 'more', { count: labels.length - 6 })),
         );
     }
     card.append(chips);

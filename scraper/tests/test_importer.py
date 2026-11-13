@@ -1,17 +1,13 @@
-import json
+import logging
 from contextlib import closing
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from church_finder_scraper.austria.archdiocese.cli import parse_args
-from church_finder_scraper.austria.archdiocese.importer import (
-    ImportOptions,
-    import_database,
-    write_database,
-)
-from church_finder_scraper.austria.archdiocese.state import (
+from church_finder_scraper.austria.cli import parse_args
+from church_finder_scraper.austria.importer import ImportOptions, import_database
+from church_finder_scraper.austria.state import (
     completed_postcodes,
     connect_state,
     load_batches,
@@ -22,20 +18,14 @@ from church_finder_scraper.austria.archdiocese.state import (
 @pytest.fixture
 def options(tmp_path: Path) -> ImportOptions:
     return ImportOptions(
-        postcodes=["1010", "1020"],
-        languages=False,
+        postcodes=["1010", "2000"],
         interval=0.5,
-        osm_endpoint="https://overpass.example",
-        osm_timeout=10,
-        osm_retries=0,
-        osm_tolerance_meters=50,
-        output=tmp_path / "generated.json",
-        website_output=tmp_path / "published.json",
         state=tmp_path / "checkpoint.sqlite",
     )
 
 
-def test_import_resumes_after_failure_and_publishes(options: ImportOptions):
+def test_import_resumes_after_failure(options: ImportOptions, caplog):
+    caplog.set_level(logging.INFO, logger="gottesdienst_at")
     browser = MagicMock()
     playwright = MagicMock()
     playwright.chromium.launch.return_value = browser
@@ -46,66 +36,135 @@ def test_import_resumes_after_failure_and_publishes(options: ImportOptions):
 
     with (
         patch(
-            "church_finder_scraper.austria.archdiocese.importer.sync_playwright",
+            "church_finder_scraper.austria.importer.sync_playwright",
             return_value=manager,
         ),
         patch(
-            "church_finder_scraper.austria.archdiocese.importer.start_session",
+            "church_finder_scraper.austria.importer.start_session",
             return_value=("s", "t"),
         ),
-        patch("church_finder_scraper.austria.archdiocese.importer.Client", return_value=client),
-        patch(
-            "church_finder_scraper.austria.archdiocese.importer.fetch_osm_records", return_value=[]
-        ),
+        patch("church_finder_scraper.austria.importer.Client", return_value=client),
     ):
         with pytest.raises(RuntimeError, match="interrupted"):
             import_database(options)
-        assert not options.output.exists()
-        assert not options.website_output.exists()
-        with closing(connect_state(options.state, options.postcodes, options.languages)) as db:
+        with closing(connect_state(options.state, options.postcodes, False)) as db:
             assert completed_postcodes(db, options.postcodes) == {"1010"}
             assert [batch["postcode"] for batch in load_batches(db)] == ["1010"]
+        database = import_database(options)
+
+    assert client.postcode.call_args_list == [(("1010",),), (("2000",),), (("2000",),)]
+    assert browser.close.call_count == 2
+    assert database == {"churches": [], "services": {}}
+    assert "Searching Gottesdienst.at for 2 postcodes, 1 already completed" in caplog.messages
+    assert [
+        message for message in caplog.messages if message.startswith("Processing postcode")
+    ] == [
+        "Processing postcode 1010 (1/2)",
+        "Processing postcode 2000 (2/2)",
+        "Processing postcode 2000 (2/2)",
+    ]
+
+
+def test_progress_counts_completed_postcodes_regardless_of_order(options: ImportOptions, caplog):
+    caplog.set_level(logging.INFO, logger="gottesdienst_at")
+    with closing(connect_state(options.state, options.postcodes, False)) as db:
+        save_batch(db, {"postcode": "2000", "results": []})
+    client = MagicMock()
+    client.postcode.return_value = []
+    with (
+        patch("church_finder_scraper.austria.importer.sync_playwright"),
+        patch(
+            "church_finder_scraper.austria.importer.start_session",
+            return_value=("s", "t"),
+        ),
+        patch("church_finder_scraper.austria.importer.Client", return_value=client),
+    ):
         import_database(options)
 
-    assert client.postcode.call_args_list == [
-        (("1010", False),),
-        (("1020", False),),
-        (("1020", False),),
-    ]
-    assert browser.close.call_count == 2
-    assert json.loads(options.output.read_text()) == {"churches": [], "services": {}}
-    assert options.website_output.read_bytes() == options.output.read_bytes()
+    client.postcode.assert_called_once_with("1010")
+    assert "Processing postcode 1010 (2/2)" in caplog.messages
+    assert "2000: already complete in checkpoint; skipping" in caplog.messages
 
 
 def test_completed_checkpoint_does_not_launch_browser(options: ImportOptions):
-    with closing(connect_state(options.state, options.postcodes, options.languages)) as db:
+    with closing(connect_state(options.state, options.postcodes, False)) as db:
         for postcode in options.postcodes:
             save_batch(db, {"postcode": postcode, "results": []})
+    with patch("church_finder_scraper.austria.importer.sync_playwright") as browser:
+        database = import_database(options)
+    browser.assert_not_called()
+    assert database == {"churches": [], "services": {}}
+
+
+def test_osm_failure_preserves_checkpoint(options: ImportOptions):
+    with closing(connect_state(options.state, options.postcodes, False)) as db:
+        for postcode in options.postcodes:
+            save_batch(
+                db,
+                {
+                    "postcode": postcode,
+                    "results": [
+                        {
+                            "church": {
+                                "id": postcode,
+                                "name": "Church",
+                                "position": {"latitude": 47.8, "longitude": 13.0},
+                            },
+                            "services": [],
+                        }
+                    ],
+                },
+            )
     with (
-        patch("church_finder_scraper.austria.archdiocese.importer.sync_playwright") as playwright,
         patch(
-            "church_finder_scraper.austria.archdiocese.importer.fetch_osm_records", return_value=[]
+            "church_finder_scraper.austria.importer.fetch_austria_records",
+            side_effect=RuntimeError("Overpass unavailable"),
         ),
+        pytest.raises(RuntimeError, match="Overpass unavailable"),
     ):
         import_database(options)
-    playwright.assert_not_called()
-    assert options.website_output.exists()
+    with closing(connect_state(options.state, options.postcodes, False)) as db:
+        assert completed_postcodes(db, options.postcodes) == set(options.postcodes)
 
 
 def test_checkpoint_rejects_unexpected_postcodes(options: ImportOptions):
-    with closing(connect_state(options.state, options.postcodes, options.languages)) as db:
+    with closing(connect_state(options.state, options.postcodes, False)) as db:
         save_batch(db, {"postcode": "9999", "results": []})
         with pytest.raises(ValueError, match="unexpected postcodes"):
             completed_postcodes(db, options.postcodes)
 
 
-def test_write_database_preserves_previous_file_on_serialization_failure(tmp_path: Path):
-    output = tmp_path / "database.json"
-    output.write_text("previous", encoding="utf-8")
-    with pytest.raises(TypeError):
-        write_database(output, {"invalid": object()})
-    assert output.read_text(encoding="utf-8") == "previous"
-    assert list(tmp_path.iterdir()) == [output]
+def test_checkpoint_rejects_changed_postcodes(options: ImportOptions):
+    with closing(connect_state(options.state, options.postcodes, False)):
+        pass
+    with pytest.raises(ValueError, match="Checkpoint options differ"):
+        connect_state(options.state, ["1010"], False)
+
+
+def test_legacy_vienna_checkpoint_is_rejected_before_starting_browser(options: ImportOptions):
+    with closing(connect_state(options.state, options.postcodes, False)) as db:
+        db.execute("DELETE FROM metadata WHERE key='source'")
+        save_batch(
+            db,
+            {"postcode": "1010", "results": [{"church": {"marker_addr": "Vienna"}}]},
+        )
+    with (
+        patch("church_finder_scraper.austria.importer.sync_playwright") as browser,
+        pytest.raises(ValueError, match="former Vienna source"),
+    ):
+        import_database(options)
+    browser.assert_not_called()
+
+
+def test_legacy_gottesdienst_checkpoint_is_reused(options: ImportOptions):
+    with closing(connect_state(options.state, options.postcodes, False)) as db:
+        db.execute("DELETE FROM metadata WHERE key='source'")
+        save_batch(db, {"postcode": "1010", "results": []})
+    with closing(connect_state(options.state, options.postcodes, False)) as db:
+        assert completed_postcodes(db, options.postcodes) == {"1010"}
+        assert db.execute("SELECT value FROM metadata WHERE key='source'").fetchone() == (
+            "gottesdienst_at",
+        )
 
 
 @pytest.mark.parametrize(
@@ -117,9 +176,10 @@ def test_write_database_preserves_previous_file_on_serialization_failure(tmp_pat
         ["--consent-google-maps", "--output", "same", "--state", "same"],
         ["--consent-google-maps", "--output", "same", "--website-output", "same"],
         ["--consent-google-maps", "--state", "same", "--website-output", "same"],
+        ["--consent-google-maps", "--postcode", "1010", "--vienna-only"],
     ],
 )
 def test_cli_rejects_invalid_options(arguments: list[str]):
-    with patch("sys.argv", ["churches-services", *arguments]), pytest.raises(SystemExit) as error:
-        parse_args()
+    with pytest.raises(SystemExit) as error:
+        parse_args(arguments)
     assert error.value.code == 2

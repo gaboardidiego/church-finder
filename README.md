@@ -1,13 +1,13 @@
 # Church Finder
 
-Find church services in Vienna by day, language and location.
+Find church services across Austria by day, language and location.
 
 ## Python scraper
 
 The standalone Python tools are in [`scraper/`](scraper/). From that directory, run
 `uv sync --group dev` and `uv run pytest`; see its README for CLI commands and quality checks.
-The scraper commands accept `--country austria` (the default); their current sources cover
-Vienna and the Archdiocese of Vienna, not all of Austria.
+The service importer uses Gottesdienst.at throughout Austria and looks up church websites in
+OpenStreetMap across Austria.
 
 ## Run the website
 
@@ -24,30 +24,15 @@ npm run dev
 
 ## Generate the database
 
-Run from the repository root. Fetch the church list, then assemble it with the matching
-`data/services/churches_vienna/<uuid>/services.json` files:
-
 ```sh
 uv sync --project scraper --group dev
-uv run --project scraper churches-osm --format json \
-  --output data/churches/churches_vienna.json
-uv run --project scraper churches-build-db \
-  data/churches/churches_vienna.json \
-  --output data/databases/churches_vienna_filtered.database.json
-```
-
-To fetch services from the Archdiocese of Vienna instead, install its browser and run the importer:
-
-```sh
-uv sync --project scraper
 uv run --project scraper playwright install chromium
-uv run --project scraper churches-services \
-  --consent-google-maps \
-  --output data/databases/churches_vienna_filtered.database.json
+uv run --project scraper churches-services --consent-google-maps
 ```
 
-Copy the database to the website with `npm run sync-data` from `web/`. It copies
-`data/databases/churches_vienna_filtered.database.json` to `web/public/data/`.
+The command collects services across Austria from Gottesdienst.at, then publishes the database
+to `web/public/data/`. Its checkpoint in `.scraper-state/` can resume interrupted imports; see
+[`scraper/README.md`](scraper/README.md) for options and source limitations.
 
 ## Check and deploy
 

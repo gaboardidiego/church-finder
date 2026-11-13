@@ -6,17 +6,17 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from .config import FALLBACK_OVERPASS_URLS, LOGGER, OVERPASS_QUERY, OVERPASS_URL
+from .config import FALLBACK_OVERPASS_URLS, LOGGER, OVERPASS_URL
 from .records import make_record
 
 
-def fetch_elements(endpoint: str, timeout: int, retries: int) -> list[dict]:
+def fetch_elements(endpoint: str, timeout: int, retries: int, *, query: str) -> list[dict]:
     request = Request(
         endpoint,
-        data=urlencode({"data": OVERPASS_QUERY}).encode("utf-8"),
+        data=urlencode({"data": query}).encode("utf-8"),
         headers={
             "Content-Type": "application/x-www-form-urlencoded",
-            "User-Agent": "church-finder-vienna/1.0 (OpenStreetMap Overpass client)",
+            "User-Agent": "church-finder/1.0 (OpenStreetMap Overpass client)",
         },
         method="POST",
     )
@@ -67,12 +67,18 @@ def fetch_elements(endpoint: str, timeout: int, retries: int) -> list[dict]:
     raise RuntimeError(f"Request to {endpoint} failed after retries")
 
 
-def fetch_records(endpoint: str = OVERPASS_URL, timeout: int = 200, retries: int = 2) -> list[dict]:
-    """Fetch and normalize Vienna OSM records for reuse by other importers."""
+def fetch_records(
+    endpoint: str = OVERPASS_URL,
+    timeout: int = 200,
+    retries: int = 2,
+    *,
+    query: str,
+) -> list[dict]:
+    """Fetch and normalize OSM records for reuse by other importers."""
     endpoints = list(dict.fromkeys((endpoint, *FALLBACK_OVERPASS_URLS)))
     for index, current_endpoint in enumerate(endpoints):
         try:
-            elements = fetch_elements(current_endpoint, timeout, retries)
+            elements = fetch_elements(current_endpoint, timeout, retries, query=query)
             break
         except RuntimeError as error:
             if index + 1 == len(endpoints):
