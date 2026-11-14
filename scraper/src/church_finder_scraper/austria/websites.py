@@ -21,12 +21,16 @@ EARTH_RADIUS = 6_371_000
 TOLERANCE_METERS = 50
 AMBIGUITY_METERS = 5
 
+Point = tuple[float, float, float]
+Cell = tuple[int, int, int]
+WebsiteIndex = dict[Cell, list[tuple[Point, str | None]]]
+
 
 def fetch_austria_records() -> list[dict]:
     return fetch_records(query=AUSTRIA_OVERPASS_QUERY)
 
 
-def _coordinates(latitude, longitude) -> tuple[float, float, float] | None:
+def _coordinates(latitude, longitude) -> Point | None:
     try:
         latitude, longitude = float(latitude), float(longitude)
     except (TypeError, ValueError):
@@ -72,7 +76,7 @@ def _website(record: dict) -> str | None:
     return None
 
 
-def _cell(point: tuple[float, float, float]) -> tuple[int, int, int]:
+def _cell(point: Point) -> Cell:
     return (
         math.floor(point[0] / TOLERANCE_METERS),
         math.floor(point[1] / TOLERANCE_METERS),
@@ -80,13 +84,38 @@ def _cell(point: tuple[float, float, float]) -> tuple[int, int, int]:
     )
 
 
-def enrich_websites(database: dict, records: list[dict]) -> None:
-    index = defaultdict(list)
+def _index_websites(records: list[dict]) -> WebsiteIndex:
+    index: WebsiteIndex = defaultdict(list)
     for record in records:
         point = _coordinates(record.get("latitude"), record.get("longitude"))
         if point is not None:
             index[_cell(point)].append((point, _website(record)))
+    return index
 
+
+def _match_website(point: Point, index: WebsiteIndex) -> str | None:
+    cell = _cell(point)
+    candidates = []
+    for offset in product((-1, 0, 1), repeat=3):
+        neighbor = tuple(coordinate + delta for coordinate, delta in zip(cell, offset, strict=True))
+        for other, website in index.get(neighbor, ()):
+            distance = math.dist(point, other)
+            if distance <= TOLERANCE_METERS:
+                candidates.append((distance, website))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda candidate: candidate[0])
+    distance, website = candidates[0]
+    if website is None or any(
+        other_website != website and other_distance - distance < AMBIGUITY_METERS
+        for other_distance, other_website in candidates[1:]
+    ):
+        return None
+    return website
+
+
+def enrich_websites(database: dict, records: list[dict]) -> None:
+    index = _index_websites(records)
     matched = 0
     for church in database["churches"]:
         position = church.get("position")
@@ -95,24 +124,8 @@ def enrich_websites(database: dict, records: list[dict]) -> None:
         point = _coordinates(position.get("latitude"), position.get("longitude"))
         if point is None:
             continue
-        cell = _cell(point)
-        candidates = []
-        for offset in product((-1, 0, 1), repeat=3):
-            neighbor = tuple(
-                coordinate + delta for coordinate, delta in zip(cell, offset, strict=True)
-            )
-            for other, website in index.get(neighbor, ()):
-                distance = math.dist(point, other)
-                if distance <= TOLERANCE_METERS:
-                    candidates.append((distance, website))
-        if not candidates:
-            continue
-        candidates.sort(key=lambda candidate: candidate[0])
-        distance, website = candidates[0]
-        if website is None or any(
-            other_website != website and other_distance - distance < AMBIGUITY_METERS
-            for other_distance, other_website in candidates[1:]
-        ):
+        website = _match_website(point, index)
+        if website is None:
             continue
         church["website"] = website
         matched += 1

@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from copy import deepcopy
 from math import degrees
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -94,6 +95,26 @@ def test_parse_search_rejects_incomplete_or_invalid_dates(day, year):
         parse_search(result)
 
 
+@pytest.mark.parametrize(
+    "html,error",
+    [
+        (RESULT.replace('id="kirche_95081"', 'id="other"'), "Malformed.*church"),
+        (RESULT.replace("10:30 Uhr", "25:30 Uhr"), "Invalid.*service time"),
+        (RESULT.replace("47.805, 13.034", "91, 13.034"), "Invalid coordinates"),
+        (
+            RESULT.replace(
+                "</script>",
+                'var point = new google.maps.LatLng(48, 13); markerId = "95081";</script>',
+            ),
+            "Ambiguous coordinates",
+        ),
+    ],
+)
+def test_parse_search_rejects_malformed_results(html, error):
+    with pytest.raises(ValueError, match=error):
+        parse_search(html)
+
+
 def test_client_queries_gottesdienst_at_by_postcode():
     class Response:
         ok = True
@@ -128,6 +149,68 @@ def test_client_queries_gottesdienst_at_by_postcode():
     }
 
 
+def test_client_retries_transient_responses_with_backoff():
+    context = MagicMock()
+    context.request.fetch.side_effect = [
+        MagicMock(ok=False, status=429),
+        MagicMock(ok=False, status=503),
+        MagicMock(ok=True, status=200),
+    ]
+    with (
+        patch("church_finder_scraper.austria.client.time.monotonic", return_value=100),
+        patch("church_finder_scraper.austria.client.time.sleep") as sleep,
+    ):
+        response = Client(context, "site", "token", 0).request("1010")
+
+    assert response.status == 200
+    assert context.request.fetch.call_count == 3
+    assert sleep.call_args_list == [call(0), call(2), call(0), call(4), call(0)]
+
+
+def test_client_paces_successive_postcode_requests():
+    context = MagicMock()
+    context.request.fetch.return_value = MagicMock(ok=True, status=200)
+    with (
+        patch(
+            "church_finder_scraper.austria.client.time.monotonic",
+            side_effect=[100, 100, 100.2, 100.2],
+        ),
+        patch("church_finder_scraper.austria.client.time.sleep") as sleep,
+    ):
+        client = Client(context, "site", "token", 1)
+        client.request("1010")
+        client.request("1020")
+
+    assert sleep.call_args_list[0] == call(0)
+    assert sleep.call_args_list[1].args[0] == pytest.approx(0.8)
+
+
+@pytest.mark.parametrize("status,expected_attempts", [(403, 1), (503, 3)])
+def test_client_stops_on_permanent_error_or_exhausted_retries(status, expected_attempts):
+    context = MagicMock()
+    context.request.fetch.return_value = MagicMock(ok=False, status=status)
+    with (
+        patch("church_finder_scraper.austria.client.time.sleep"),
+        pytest.raises(RuntimeError, match=f"HTTP {status}"),
+    ):
+        Client(context, "site", "token", 0).request("1010")
+    assert context.request.fetch.call_count == expected_attempts
+
+
+def test_client_warns_when_search_may_be_truncated(caplog):
+    context = MagicMock()
+    response = MagicMock(ok=True, status=200)
+    response.text.return_value = "html"
+    context.request.fetch.return_value = response
+    results = [{"services": [{}] * 200}]
+    with (
+        patch("church_finder_scraper.austria.client.parse_search", return_value=results),
+        patch("church_finder_scraper.austria.client.time.sleep"),
+    ):
+        assert Client(context, "site", "token", 0).postcode("1010") == results
+    assert "search result limit truncated this postcode" in caplog.text
+
+
 def test_build_database_deduplicates_services_across_postcodes():
     entry = parse_search(RESULT)[0]
     database = build_database(
@@ -140,6 +223,21 @@ def test_build_database_deduplicates_services_across_postcodes():
     assert len(database["churches"]) == 1
     church_id = database["churches"][0]["uuid"]
     assert database["services"][church_id] == entry["services"]
+
+
+def test_build_database_sorts_services_across_batches():
+    entry = parse_search(RESULT)[0]
+    later = deepcopy(entry)
+    entry["services"] = [entry["services"][1]]
+    later["services"] = [later["services"][0], later["services"][1]]
+
+    database = build_database([{"results": [entry]}, {"results": [later]}])
+
+    church_id = database["churches"][0]["uuid"]
+    assert [service["date"] for service in database["services"][church_id]] == [
+        "2026-11-08",
+        "2026-11-09",
+    ]
 
 
 @pytest.mark.parametrize("missing_first", [False, True])
@@ -245,6 +343,23 @@ def test_website_enrichment_distance_cutoff(distance, expected):
         ],
     )
     assert ("website" in database["churches"][0]) is expected
+
+
+@pytest.mark.parametrize("difference,expected", [(4.99, False), (5.01, True)])
+def test_website_enrichment_ambiguity_cutoff(difference, expected):
+    database = build_database([{"results": [parse_search(RESULT)[0]]}])
+    enrich_websites(
+        database,
+        [
+            {"latitude": 47.805, "longitude": 13.034, "website": "https://a.example"},
+            {
+                "latitude": 47.805 + degrees(difference / EARTH_RADIUS),
+                "longitude": 13.034,
+                "website": "https://b.example",
+            },
+        ],
+    )
+    assert database["churches"][0].get("website") == ("https://a.example" if expected else None)
 
 
 def test_website_enrichment_handles_missing_or_invalid_coordinates():

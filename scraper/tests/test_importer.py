@@ -125,6 +125,34 @@ def test_osm_failure_preserves_checkpoint(options: ImportOptions):
         import_database(options)
     with closing(connect_state(options.state, options.postcodes, False)) as db:
         assert completed_postcodes(db, options.postcodes) == set(options.postcodes)
+    with (
+        patch("church_finder_scraper.austria.importer.sync_playwright") as browser,
+        patch("church_finder_scraper.austria.importer.fetch_austria_records", return_value=[]),
+    ):
+        database = import_database(options)
+    browser.assert_not_called()
+    assert len(database["churches"]) == 2
+
+
+def test_checkpoint_write_failure_closes_browser_and_does_not_mark_postcode_complete(
+    options: ImportOptions,
+):
+    browser = MagicMock()
+    playwright = MagicMock()
+    playwright.chromium.launch.return_value = browser
+    manager = MagicMock()
+    manager.__enter__.return_value = playwright
+    with (
+        patch("church_finder_scraper.austria.importer.sync_playwright", return_value=manager),
+        patch("church_finder_scraper.austria.importer.start_session", return_value=("s", "t")),
+        patch("church_finder_scraper.austria.importer.Client"),
+        patch("church_finder_scraper.austria.importer.save_batch", side_effect=OSError("disk")),
+        pytest.raises(OSError, match="disk"),
+    ):
+        import_database(options)
+    browser.close.assert_called_once()
+    with closing(connect_state(options.state, options.postcodes, False)) as db:
+        assert completed_postcodes(db, options.postcodes) == set()
 
 
 def test_checkpoint_rejects_unexpected_postcodes(options: ImportOptions):
