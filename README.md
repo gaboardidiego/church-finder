@@ -42,6 +42,14 @@ The command collects services across Austria from Gottesdienst.at, then publishe
 to `web/public/data/`. Its checkpoint in `.scraper-state/` can resume interrupted imports; see
 [`scraper/README.md`](scraper/README.md) for options and source limitations.
 
+To update the repository automatically, run **Update Austria services** from the GitHub Actions
+tab and select the branch to update (normally `main`). Each run starts a fresh nationwide import
+and commits both the source database and its `docs/data/` copy only after the import succeeds.
+The workflow requires permission to push to the selected branch. Runs do not retain checkpoints
+between attempts, and source limits may prevent complete coverage; see the scraper README.
+The workflow's `GITHUB_TOKEN` push does not trigger other workflows or a GitHub Pages build;
+publishing the updated `docs/` through Pages may require a separate deployment.
+
 ## Check and deploy
 
 Run from `web/`:

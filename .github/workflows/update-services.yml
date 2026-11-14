@@ -1,0 +1,51 @@
+name: Update Austria services
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-website-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  update-services:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Check out selected branch
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install scraper dependencies
+        run: uv sync --project scraper --locked --no-dev
+
+      - name: Install Chromium
+        run: uv run --project scraper --locked --no-dev playwright install --with-deps chromium
+
+      - name: Import services across Austria
+        run: uv run --project scraper --locked --no-dev churches-services --country austria --consent-google-maps --fresh
+
+      - name: Update published database
+        run: cp web/public/data/churches_vienna.database.json docs/data/churches_vienna.database.json
+
+      - name: Commit updated databases
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add web/public/data/churches_vienna.database.json docs/data/churches_vienna.database.json
+          if git diff --cached --quiet; then
+            echo "No database changes."
+            exit 0
+          fi
+          git commit -m "Update Austria services database"
+          git push origin "HEAD:$GITHUB_REF"
