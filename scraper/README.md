@@ -56,8 +56,10 @@ both versions. Use `--output` (or its alias `--website-output`) to select a diff
 `austria/osm/` fetches and validates Overpass records for website enrichment.
 `austria/` separates service site interaction (`browser.py` and `client.py`), parsing
 and normalization (`processing.py`), checkpoint storage (`state.py`), database assembly
-(`database.py`), and publication (`publish.py`). Keep source-specific parsing independent of
-network calls and add offline tests for new formats and failure paths.
+(`database.py`), spatial website matching (`websites.py`), and publication (`publish.py`).
+`importer.py` coordinates checkpointed collection and enrichment; it does not publish the
+result. Keep source-specific parsing independent of network calls and add offline tests for
+new formats and failure paths.
 
 The shared `cli.py` dispatches each scraping command using `COUNTRY_MODULES`. To add a
 country, implement its commands independently in a new country package and register the

@@ -82,37 +82,37 @@ def _parse_service(element, church_id: str) -> dict[str, str] | None:
     }
 
 
+def _parse_church_result(item, positions: dict[str, dict[str, float]]) -> dict:
+    marker = item.select_one(".marker")
+    church_id_match = re.fullmatch(r"kirche_(\d+)", str(marker.get("id", ""))) if marker else None
+    name = marker.select_one(".title") if marker else None
+    address = marker.select_one(".address") if marker else None
+    if church_id_match is None or name is None or address is None:
+        raise ValueError("Malformed Gottesdienst.at church result")
+
+    church_id = church_id_match.group(1)
+    services = []
+    for service in item.select(".gdItem"):
+        parsed = _parse_service(service, church_id)
+        if parsed is not None:
+            services.append(parsed)
+    return {
+        "church": {
+            "id": church_id,
+            "name": name.get_text(" ", strip=True),
+            "address": address.get_text(" ", strip=True),
+            "position": positions.get(church_id),
+        },
+        "services": services,
+    }
+
+
 def parse_search(html: str) -> list[dict]:
     soup = BeautifulSoup(html, "html.parser")
     if soup.select_one("#site_search_gottesdienste") is None:
         raise ValueError("Gottesdienst.at search form missing: consent or site layout changed")
 
     positions = _positions(html)
-    results = []
-    for item in soup.select("#gdList .resultList .item"):
-        marker = item.select_one(".marker")
-        church_id_match = (
-            re.fullmatch(r"kirche_(\d+)", str(marker.get("id", ""))) if marker else None
-        )
-        name = marker.select_one(".title") if marker else None
-        address = marker.select_one(".address") if marker else None
-        if church_id_match is None or name is None or address is None:
-            raise ValueError("Malformed Gottesdienst.at church result")
-        church_id = church_id_match.group(1)
-        services = []
-        for service in item.select(".gdItem"):
-            parsed = _parse_service(service, church_id)
-            if parsed is not None:
-                services.append(parsed)
-        results.append(
-            {
-                "church": {
-                    "id": church_id,
-                    "name": name.get_text(" ", strip=True),
-                    "address": address.get_text(" ", strip=True),
-                    "position": positions.get(church_id),
-                },
-                "services": services,
-            }
-        )
-    return results
+    return [
+        _parse_church_result(item, positions) for item in soup.select("#gdList .resultList .item")
+    ]
