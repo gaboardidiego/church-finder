@@ -9,7 +9,7 @@ describe('map popups', () => {
   it('omits unknown languages while retaining known languages and service times', () => {
     const element = document.createElement('div');
     document.body.append(element);
-    const onSelect = vi.fn(() => map.fitToResults([result], result.church.position));
+    const onSelect = vi.fn(() => map.focusChurch([result], result.church.position));
     const map = new ChurchMap(element, { onPick: vi.fn(), onSelect });
     const result: Result = {
       church: {
@@ -34,7 +34,58 @@ describe('map popups', () => {
     expect(element.querySelector('.leaflet-popup-content')?.textContent).toBe(
       'Church09:00 · 10:00 German',
     );
+    expect(map['markers'].get('one')?.getPopup()?.options.autoPan).toBe(false);
     element.remove();
+  });
+
+  describe('church selection', () => {
+    it.each([
+      { zoom: 12, position: { latitude: 48.2, longitude: 16.3 }, shouldFit: true },
+      { zoom: 13, position: { latitude: 48.2, longitude: 16.3 }, shouldFit: false },
+      { zoom: 16, position: { latitude: 48.2, longitude: 16.3 }, shouldFit: false },
+      { zoom: 16, position: { latitude: 47, longitude: 15 }, shouldFit: true },
+    ])(
+      'frames only broad views or off-screen churches at zoom $zoom',
+      ({ zoom, position, shouldFit }) => {
+        const element = document.createElement('div');
+        Object.defineProperties(element, {
+          clientWidth: { value: 800 },
+          clientHeight: { value: 600 },
+        });
+        document.body.append(element);
+        const map = new ChurchMap(element, { onPick: vi.fn(), onSelect: vi.fn() });
+        const leafletMap = map['map'];
+        leafletMap.setView([48.2, 16.3], zoom);
+        const center = leafletMap.getCenter();
+        const result: Result = {
+          church: {
+            id: 'one',
+            name: 'Church',
+            website: '',
+            position,
+            religion: '',
+            denomination: '',
+            services: [],
+          },
+          services: [],
+          distanceKm: null,
+        };
+        const fitBounds = vi.spyOn(leafletMap, 'fitBounds');
+
+        map.focusChurch([result], position);
+
+        expect(fitBounds).toHaveBeenCalledTimes(shouldFit ? 1 : 0);
+        if (!shouldFit) {
+          expect(leafletMap.getZoom()).toBe(zoom);
+          expect(leafletMap.getCenter()).toEqual(center);
+        } else {
+          expect(leafletMap.getBounds().contains([position.latitude, position.longitude])).toBe(
+            true,
+          );
+        }
+        element.remove();
+      },
+    );
   });
 
   describe('location framing', () => {

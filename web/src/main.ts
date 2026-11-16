@@ -88,7 +88,7 @@ function focusChurch(id: string): void {
   else {
     pendingChurchFocus = null;
     pendingResultsFit = false;
-    map.fitToResults(results, church.position);
+    map.focusChurch(results, church.position);
   }
 }
 
