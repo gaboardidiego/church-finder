@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
     setOrigin: vi.fn(),
     setResults: vi.fn(),
     fitToResults: vi.fn(),
+    focusChurch: vi.fn(),
     highlight: vi.fn(),
     invalidate: vi.fn(),
   },
@@ -184,7 +185,7 @@ describe('application flow', () => {
     element('.card').scrollIntoView = vi.fn();
     mocks.handlers.onSelect('first');
     expect(element('.card').classList.contains('active')).toBe(true);
-    expect(mocks.map.fitToResults).toHaveBeenLastCalledWith(
+    expect(mocks.map.focusChurch).toHaveBeenLastCalledWith(
       expect.arrayContaining([
         expect.objectContaining({ church: expect.objectContaining({ id: 'first' }) }),
       ]),
@@ -192,7 +193,7 @@ describe('application flow', () => {
     );
     element<HTMLElement>('.card').click();
     expect(mocks.map.highlight).toHaveBeenCalledWith('first');
-    expect(mocks.map.fitToResults).toHaveBeenLastCalledWith(expect.any(Array), position);
+    expect(mocks.map.focusChurch).toHaveBeenLastCalledWith(expect.any(Array), position);
     element<HTMLButtonElement>('.view-toggle [data-view="map"]').click();
     expect(element('.layout').dataset.view).toBe('map');
     expect(mocks.map.invalidate).toHaveBeenCalledOnce();
@@ -206,7 +207,7 @@ describe('application flow', () => {
     expect((mocks.map.setResults.mock.lastCall?.[0] as Result[])[0]?.church.id).toBe('second');
     mocks.map.setOrigin.mockClear();
     element<HTMLElement>('.card[data-id="first"]').click();
-    const [results, focus] = mocks.map.fitToResults.mock.lastCall as [Result[], Position];
+    const [results, focus] = mocks.map.focusChurch.mock.lastCall as [Result[], Position];
     expect(focus).toEqual({ latitude: 48.2, longitude: 16.3 });
     expect(results.map(({ church }) => church.id)).toEqual(['first', 'second']);
     expect(mocks.map.setOrigin).not.toHaveBeenCalled();
@@ -224,7 +225,7 @@ describe('application flow', () => {
     element<HTMLElement>('.card').click();
     respond?.({ coords: { latitude: 47, longitude: 15 } } as GeolocationPosition);
     expect(mocks.map.setOrigin).not.toHaveBeenCalled();
-    expect(mocks.map.fitToResults.mock.lastCall?.[1]).toEqual({
+    expect(mocks.map.focusChurch.mock.lastCall?.[1]).toEqual({
       latitude: 48.2,
       longitude: 16.3,
     });
@@ -234,12 +235,12 @@ describe('application flow', () => {
   it('frames a church selected in list view once the map becomes visible', async () => {
     await start();
     element<HTMLButtonElement>('.view-toggle [data-view="list"]').click();
-    mocks.map.fitToResults.mockClear();
+    mocks.map.focusChurch.mockClear();
     element<HTMLElement>('.card').click();
-    expect(mocks.map.fitToResults).not.toHaveBeenCalled();
+    expect(mocks.map.focusChurch).not.toHaveBeenCalled();
     element<HTMLButtonElement>('.view-toggle [data-view="map"]').click();
     expect(mocks.map.invalidate).toHaveBeenCalledTimes(2);
-    expect(mocks.map.fitToResults).toHaveBeenLastCalledWith(expect.any(Array), {
+    expect(mocks.map.focusChurch).toHaveBeenLastCalledWith(expect.any(Array), {
       latitude: 48.2,
       longitude: 16.3,
     });

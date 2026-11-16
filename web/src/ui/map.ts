@@ -90,7 +90,7 @@ export class ChurchMap {
         popup.append(document.createElement('br'));
         popup.append(serviceLabels.join(' · '));
       }
-      marker.bindPopup(popup);
+      marker.bindPopup(popup, { autoPan: false });
       marker.on('click', () => this.handlers.onSelect(church.id));
       marker.addTo(this.layer);
       this.markers.set(church.id, marker);
@@ -119,6 +119,15 @@ export class ChurchMap {
         animate: false,
       });
     }
+  }
+
+  focusChurch(results: Result[], position: Position): void {
+    if (
+      this.map.getZoom() >= LOCATION_ZOOM &&
+      this.map.getBounds().contains([position.latitude, position.longitude])
+    )
+      return;
+    this.fitToResults(results, position);
   }
 
   highlight(id: string | null): void {
