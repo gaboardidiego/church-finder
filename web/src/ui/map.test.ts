@@ -1,11 +1,50 @@
 import L from 'leaflet';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Result } from '../types';
+import { messages } from '../i18n';
 import { ChurchMap } from './map';
 
 afterEach(() => vi.restoreAllMocks());
 
 describe('map popups', () => {
+  it('updates an open popup with errors, retry and loaded schedule', () => {
+    const element = document.createElement('div');
+    document.body.append(element);
+    const retry = vi.fn();
+    const map = new ChurchMap(element, { onPick: vi.fn(), onSelect: vi.fn() });
+    const result: Result = {
+      church: {
+        id: 'one',
+        name: 'Church',
+        website: '',
+        position: { latitude: 48.2, longitude: 16.3 },
+        religion: '',
+        denomination: '',
+        services: [],
+        region: 'wien',
+        serviceIndex: [{ date: '2026-10-24', language: 'German' }],
+        scheduleStatus: 'loading',
+      },
+      services: [],
+      distanceKm: null,
+    };
+    map.setResults([result], messages.en, retry);
+    element.querySelector<HTMLElement>('.church-marker')!.click();
+    expect(element.querySelector('.leaflet-popup-content')?.textContent).toContain(
+      messages.en.schedulesLoading,
+    );
+    result.church.scheduleStatus = 'error';
+    map.updateSchedule(result, messages.en, retry, 'en');
+    element.querySelector<HTMLButtonElement>('.leaflet-popup-content button')!.click();
+    expect(retry).toHaveBeenCalledWith('one');
+    result.church.scheduleStatus = 'loaded';
+    result.services = [{ date: '2026-10-24', startTime: '10:00', language: 'German' }];
+    map.updateSchedule(result, messages.en, retry, 'en');
+    expect(element.querySelector('.leaflet-popup-content')?.textContent).toContain('24 Oct');
+    expect(element.querySelector('.leaflet-popup-content')?.textContent).toContain('10:00');
+    element.remove();
+  });
+
   it('omits unknown languages while retaining known languages and service times', () => {
     const element = document.createElement('div');
     document.body.append(element);

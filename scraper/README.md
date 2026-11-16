@@ -46,10 +46,24 @@ If postcode results for the same Gottesdienst.at church omit coordinates in some
 the importer uses coordinates from another response for that church. Conflicting known coordinates
 or church names still stop the import.
 
-The combined database is published directly to `web/public/data/churches_vienna.database.json`,
-whose legacy filename is kept for URL compatibility. The prior website database is copied to
-the Git-ignored `backups/` directory, and the importer logs the church and service counts for
-both versions. Use `--output` (or its alias `--website-output`) to select a different path.
+The church index is published to `web/public/data/churches_vienna.database.json`, whose legacy
+filename is kept for URL compatibility. It includes a compact date/language index for filtering.
+Full schedules are published alongside it as content-addressed `services-<state>-<hash>.json`
+files, one per Austrian federal state. The frontend fetches these files as needed.
+State assignments use simplified 2021 boundaries: CC BY 4.0 Flooh Perlot,
+[GeoJSON/TopoJSON Austria](https://github.com/ginseng666/GeoJSON-TopoJSON-Austria),
+derived from CC BY 4.0 Statistik Austria (data.statistik.gv.at). Approximate boundaries may
+misclassify locations near state borders. Locations outside the boundaries use the nearest state.
+When coordinates are unavailable, the address postcode, or otherwise the search postcode, is
+used to approximate the state from postal ranges. Postal areas can cross state boundaries;
+if neither coordinates nor a usable postcode are available, publication stops rather than
+assigning an arbitrary state.
+
+The prior index is copied to the Git-ignored `backups/` directory, and the importer logs the
+church and service counts for both versions. Regional files are immutable and retained so
+previous indexes and active clients continue to work; restoring an index requires its referenced
+files in the output directory. Use `--output` (or its alias `--website-output`) to select a
+different index path; regional files are placed alongside it.
 
 ## Code layout and extending the scraper
 

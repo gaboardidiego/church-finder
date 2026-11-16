@@ -1,5 +1,5 @@
 import { initAnalytics, trackEvent } from './analytics';
-import { loadChurches } from './data';
+import { loadDatabase, ScheduleLoader } from './data';
 import { formatMessage, isLocale, messages, resolveLocale } from './i18n';
 import { ALL_DENOMINATIONS, ALL_LANGUAGES, dateForDay, filterResults, toIsoDate } from './filters';
 import type { Church, Filters, Position, Result } from './types';
@@ -54,6 +54,10 @@ let pendingResultsFit = false;
 let currentResults: Result[] = [];
 let allowIpLocation = true;
 let preserveInitialView = false;
+let scheduleLoader: ScheduleLoader | null = null;
+let cardObserver: IntersectionObserver | null = null;
+let cardsGeneration = 0;
+let selectedChurch: string | null = null;
 
 const map = new ChurchMap($('#map'), {
   onPick: (position) => {
@@ -64,7 +68,9 @@ const map = new ChurchMap($('#map'), {
   },
   onSelect: (id) => {
     focusChurch(id);
+    selectedChurch = id;
     setActiveCard(resultsEl, id, true);
+    requestSchedule(id);
   },
 });
 
@@ -147,24 +153,8 @@ function refresh(fit = true): void {
   currentResults = results;
   if (pendingChurchFocus && !results.some(({ church }) => church.id === pendingChurchFocus))
     pendingChurchFocus = null;
-  renderResults(
-    resultsEl,
-    results,
-    filters.date === null || state.weekend,
-    {
-      onHover: (id) => map.highlight(id),
-      onSelect: (id) => {
-        map.highlight(id);
-        focusChurch(id);
-        setActiveCard(resultsEl, id, false);
-      },
-      onOpenWebsite: () => trackEvent('open_website'),
-      onOpenMap: () => trackEvent('open_google_maps'),
-    },
-    locale,
-    messages[locale],
-  );
-  map.setResults(results);
+  renderCards();
+  map.setResults(results, messages[locale], retrySchedule, locale);
   if (fit) {
     if (layoutEl.dataset.view === 'list') pendingResultsFit = true;
     else {
@@ -173,6 +163,95 @@ function refresh(fit = true): void {
     }
   }
   updateStatus(results.length);
+}
+
+function renderCards(): void {
+  cardObserver?.disconnect();
+  const generation = ++cardsGeneration;
+  renderResults(
+    resultsEl,
+    currentResults,
+    state.filters.date === null || state.weekend,
+    {
+      onHover: (id) => map.highlight(id),
+      onSelect: (id) => {
+        map.highlight(id);
+        focusChurch(id);
+        selectedChurch = id;
+        setActiveCard(resultsEl, id, false);
+        requestSchedule(id);
+      },
+      onOpenWebsite: () => trackEvent('open_website'),
+      onOpenMap: () => trackEvent('open_google_maps'),
+      onRetry: retrySchedule,
+    },
+    locale,
+    messages[locale],
+  );
+  if (selectedChurch) setActiveCard(resultsEl, selectedChurch, false);
+  if (layoutEl.dataset.view !== 'list') return;
+  if (typeof IntersectionObserver !== 'undefined') {
+    cardObserver = new IntersectionObserver(
+      (entries) => {
+        if (generation !== cardsGeneration || layoutEl.dataset.view !== 'list') return;
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            const id = (entry.target as HTMLElement).dataset.id;
+            if (id) requestSchedule(id);
+          }
+        }
+      },
+      { root: resultsEl },
+    );
+    for (const card of resultsEl.querySelectorAll('.card')) cardObserver.observe(card);
+  } else {
+    checkVisibleCards();
+  }
+}
+
+function checkVisibleCards(): void {
+  if (layoutEl.dataset.view !== 'list' || typeof IntersectionObserver !== 'undefined') return;
+  const root = resultsEl.getBoundingClientRect();
+  for (const card of resultsEl.querySelectorAll<HTMLElement>('.card')) {
+    const rect = card.getBoundingClientRect();
+    if (rect.height > 0 && rect.bottom > root.top && rect.top < root.bottom && card.dataset.id)
+      requestSchedule(card.dataset.id);
+  }
+}
+
+resultsEl.addEventListener('scroll', checkVisibleCards);
+window.addEventListener('resize', checkVisibleCards);
+
+function retrySchedule(id: string): void {
+  requestSchedule(id, true);
+}
+
+function requestSchedule(id: string, retry = false): void {
+  const church = state.churches.find((item) => item.id === id);
+  if (
+    !church ||
+    !scheduleLoader ||
+    (church.scheduleStatus !== 'unloaded' && !(retry && church.scheduleStatus === 'error'))
+  )
+    return;
+  const request = scheduleLoader.load(church);
+  updateSchedules();
+  void request.then(updateSchedules, updateSchedules);
+}
+
+function updateSchedules(): void {
+  currentResults = filterResults(
+    state.churches,
+    state.filters,
+    state.origin,
+    state.weekend,
+    toIsoDate(new Date()),
+  );
+  renderCards();
+  for (const result of currentResults) {
+    if (result.church.serviceIndex)
+      map.updateSchedule(result, messages[locale], retrySchedule, locale);
+  }
 }
 
 function updateChips(active: string): void {
@@ -280,6 +359,7 @@ document.querySelectorAll<HTMLElement>('.view-toggle button').forEach((button) =
       .querySelectorAll('.view-toggle button')
       .forEach((b) => b.classList.toggle('active', b === button));
     map.invalidate();
+    if (layoutEl.dataset.view === 'list') renderCards();
     if (layoutEl.dataset.view === 'map' && pendingChurchFocus) focusChurch(pendingChurchFocus);
     else if (layoutEl.dataset.view === 'map' && pendingResultsFit) {
       pendingResultsFit = false;
@@ -326,9 +406,10 @@ async function start(): Promise<void> {
   locate();
   if (allowIpLocation) void locateByIp();
   try {
-    state.churches = await loadChurches(
-      `${import.meta.env.BASE_URL}data/churches_vienna.database.json`,
-    );
+    const url = `${import.meta.env.BASE_URL}data/churches_vienna.database.json`;
+    const database = await loadDatabase(url);
+    state.churches = database.churches;
+    scheduleLoader = new ScheduleLoader(state.churches, url, database.serviceFiles);
   } catch {
     dataLoadFailed = true;
     updateStatus(0);

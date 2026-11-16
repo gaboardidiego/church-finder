@@ -9,6 +9,11 @@ export interface Service {
   date: string;
 }
 
+export interface ServiceIndexEntry {
+  date: string;
+  language: string;
+}
+
 export interface Church {
   id: string;
   name: string;
@@ -17,6 +22,9 @@ export interface Church {
   religion: string;
   denomination: string;
   services: Service[];
+  region?: string;
+  serviceIndex?: ServiceIndexEntry[];
+  scheduleStatus?: 'unloaded' | 'loading' | 'loaded' | 'error';
 }
 
 export interface Filters {

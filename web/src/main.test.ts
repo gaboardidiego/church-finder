@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
     focusChurch: vi.fn(),
     highlight: vi.fn(),
     invalidate: vi.fn(),
+    updateSchedule: vi.fn(),
   },
   handlers: {
     onPick: vi.fn<(position: Position) => void>(),
@@ -105,6 +106,141 @@ afterEach(() => {
 });
 
 describe('application flow', () => {
+  it('filters indexed schedules without requests and lazily loads visible cards', async () => {
+    let observerCallback: IntersectionObserverCallback | undefined;
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          observerCallback = callback;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const indexed = {
+      churches: [
+        {
+          ...database.churches[0],
+          region: 'wien',
+          service_index: [
+            { date: today, language: 'English' },
+            { date: weekend[0], language: 'German' },
+          ],
+        },
+        {
+          ...database.churches[1],
+          region: 'tirol',
+          service_index: [{ date: weekend[0], language: 'English' }],
+        },
+      ],
+      service_files: { wien: 'services-wien-abcd.json', tirol: 'services-tirol-1234.json' },
+      services: {},
+    };
+    const fetch = vi.fn((url: string) => {
+      if (url === 'https://ipwho.is/') return new Promise<Response>(() => {});
+      if (url.includes('services-wien-'))
+        return Promise.resolve({ ok: true, json: async () => ({ services: database.services }) });
+      return Promise.resolve({ ok: true, json: async () => indexed });
+    });
+    vi.stubGlobal('fetch', fetch);
+    await start();
+    expect(fetch.mock.calls.filter(([url]) => url.includes('/services-'))).toHaveLength(0);
+    expect(element<HTMLSelectElement>('#language').options).toHaveLength(3);
+    element<HTMLButtonElement>('[data-day="weekend"]').click();
+    change('#language', 'German');
+    expect(element('#results').textContent).toContain('First Church');
+    expect(element('#results').textContent).not.toContain('Second Church');
+    element<HTMLButtonElement>('.view-toggle [data-view="list"]').click();
+    const card = element('.card');
+    expect(card.textContent).toContain(messages.en.schedulesPending);
+    observerCallback?.(
+      [{ target: card, isIntersecting: true } as unknown as IntersectionObserverEntry],
+      {} as IntersectionObserver,
+    );
+    await vi.waitFor(() => expect(element('.card').textContent).toContain('10:00'));
+    expect(fetch.mock.calls.filter(([url]) => url.includes('/services-'))).toHaveLength(1);
+    expect(mocks.map.updateSchedule).toHaveBeenCalled();
+  });
+
+  it('loads selected map schedules, shows failures and retries without restoring stale filters', async () => {
+    const indexed = {
+      churches: [
+        {
+          ...database.churches[0],
+          region: 'wien',
+          service_index: [{ date: today, language: 'English' }],
+        },
+      ],
+      service_files: { wien: 'services-wien-abcd.json' },
+      services: {},
+    };
+    let resolveRetry: ((value: { ok: boolean; json: () => Promise<object> }) => void) | undefined;
+    let attempts = 0;
+    const fetch = vi.fn((url: string) => {
+      if (url === 'https://ipwho.is/') return new Promise<Response>(() => {});
+      if (url.includes('services-wien-')) {
+        attempts++;
+        if (attempts === 1) return Promise.resolve({ ok: false, status: 500 });
+        return new Promise<{ ok: boolean; json: () => Promise<object> }>((resolve) => {
+          resolveRetry = resolve;
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => indexed });
+    });
+    vi.stubGlobal('fetch', fetch);
+    await start();
+    element<HTMLElement>('.card').scrollIntoView = vi.fn();
+    mocks.handlers.onSelect('first');
+    await vi.waitFor(() =>
+      expect(element('.card').textContent).toContain(messages.en.schedulesFailed),
+    );
+    element<HTMLButtonElement>('.card button').click();
+    expect(element('.card').textContent).toContain(messages.en.schedulesLoading);
+    const search = element<HTMLInputElement>('#name-search');
+    search.value = 'no match';
+    search.dispatchEvent(new Event('input'));
+    resolveRetry?.({
+      ok: true,
+      json: async () => ({ services: { first: [database.services.first[0]] } }),
+    });
+    await vi.waitFor(() => expect(attempts).toBe(2));
+    await vi.waitFor(() =>
+      expect(element('#results').textContent).toContain(messages.en.noServices),
+    );
+    expect(element('#results').textContent).not.toContain('First Church');
+  });
+
+  it('loads only viewport cards without IntersectionObserver', async () => {
+    vi.stubGlobal('IntersectionObserver', undefined);
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const top = this.dataset.id === 'second' ? 200 : 0;
+      return { top, bottom: top + 100, height: 100 } as DOMRect;
+    });
+    const indexed = {
+      churches: database.churches.map((church, index) => ({
+        ...church,
+        region: index === 0 ? 'wien' : 'tirol',
+        service_index: [{ date: today, language: 'English' }],
+      })),
+      service_files: { wien: 'services-wien-abcd.json', tirol: 'services-tirol-abcd.json' },
+      services: {},
+    };
+    const fetch = vi.fn((url: string) => {
+      if (url === 'https://ipwho.is/' || url.includes('/services-'))
+        return new Promise<Response>(() => {});
+      return Promise.resolve({ ok: true, json: async () => indexed });
+    });
+    vi.stubGlobal('fetch', fetch);
+    await start();
+    element<HTMLButtonElement>('.view-toggle [data-view="list"]').click();
+    expect(
+      fetch.mock.calls.filter(([url]) => url.includes('/services-')).map(([url]) => url),
+    ).toEqual([expect.stringContaining('services-wien-abcd.json')]);
+  });
+
   it('hides unknown language options and labels while retaining services', async () => {
     vi.stubGlobal(
       'fetch',

@@ -41,7 +41,8 @@ uv run --project scraper churches-services --consent-google-maps
 ```
 
 The command collects services across Austria from Gottesdienst.at, then publishes the database
-to `web/public/data/`. Its checkpoint in `.scraper-state/` can resume interrupted imports; see
+to `web/public/data/`. A compact church index supports nationwide filters; full schedules are
+split by federal state and loaded as needed. Its checkpoint in `.scraper-state/` can resume interrupted imports; see
 [`scraper/README.md`](scraper/README.md) for options and source limitations.
 
 **Update Austria services** runs on the first of each month at 03:17 UTC on the default branch.
