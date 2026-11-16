@@ -52,11 +52,14 @@ let locationStatus: 'locating' | 'geolocationUnsupported' | 'geolocationFailed' 
 let pendingChurchFocus: string | null = null;
 let pendingResultsFit = false;
 let currentResults: Result[] = [];
+let allowIpLocation = true;
+let preserveInitialView = false;
 
 const map = new ChurchMap($('#map'), {
   onPick: (position) => {
     trackEvent('pin_location');
     locationRequest++;
+    allowIpLocation = false;
     pickPosition(position);
   },
   onSelect: (id) => {
@@ -65,6 +68,14 @@ const map = new ChurchMap($('#map'), {
   },
 });
 
+const mapElement = $('#map');
+for (const event of ['pointerdown', 'wheel', 'keydown']) {
+  mapElement.addEventListener(event, () => {
+    allowIpLocation = false;
+    preserveInitialView = true;
+  });
+}
+
 function pickPosition(position: Position): void {
   setOrigin(position, 'yourPin');
 }
@@ -72,6 +83,8 @@ function pickPosition(position: Position): void {
 function focusChurch(id: string): void {
   const church = state.churches.find((item) => item.id === id);
   if (!church) throw new Error(`Unknown church ${id}`);
+  allowIpLocation = false;
+  preserveInitialView = true;
   const results = filterResults(
     state.churches,
     state.filters,
@@ -225,6 +238,7 @@ function locate(): void {
     (cached: boolean): PositionCallback =>
     ({ coords }) => {
       if (request !== locationRequest) return;
+      allowIpLocation = false;
       setOrigin(
         { latitude: coords.latitude, longitude: coords.longitude },
         cached || coords.accuracy > 1000 ? 'yourApproximateLocation' : 'yourLocation',
@@ -243,7 +257,7 @@ function locate(): void {
   const finishFailure = (): void => {
     if (request !== locationRequest) return;
     locationStatus = 'geolocationFailed';
-    if (dataLoaded) refresh();
+    if (dataLoaded) refresh(!preserveInitialView);
     else updateStatus(0);
   };
   navigator.geolocation.getCurrentPosition(success(false), fail, {
@@ -255,6 +269,7 @@ function locate(): void {
 
 $('#locate').addEventListener('click', () => {
   trackEvent('use_location');
+  allowIpLocation = false;
   locate();
 });
 
@@ -273,6 +288,35 @@ document.querySelectorAll<HTMLElement>('.view-toggle button').forEach((button) =
   }),
 );
 
+async function locateByIp(): Promise<void> {
+  try {
+    const response = await fetch('https://ipwho.is/', { credentials: 'omit' });
+    if (!response.ok) throw new Error(`IP location request failed (${response.status})`);
+    const data: unknown = await response.json();
+    if (
+      typeof data !== 'object' ||
+      data === null ||
+      !('success' in data) ||
+      data.success !== true ||
+      !('latitude' in data) ||
+      typeof data.latitude !== 'number' ||
+      !Number.isFinite(data.latitude) ||
+      Math.abs(data.latitude) > 90 ||
+      !('longitude' in data) ||
+      typeof data.longitude !== 'number' ||
+      !Number.isFinite(data.longitude) ||
+      Math.abs(data.longitude) > 180
+    )
+      throw new Error('Invalid IP location response');
+    if (!allowIpLocation) return;
+    preserveInitialView = true;
+    pendingResultsFit = false;
+    map.showApproximateLocation({ latitude: data.latitude, longitude: data.longitude });
+  } catch (error) {
+    console.warn('Could not determine approximate IP location:', error);
+  }
+}
+
 async function start(): Promise<void> {
   initAnalytics();
   applyLocale(locale);
@@ -280,6 +324,7 @@ async function start(): Promise<void> {
   dateInput.value = state.filters.date ?? '';
   updateChips('today');
   locate();
+  if (allowIpLocation) void locateByIp();
   try {
     state.churches = await loadChurches(
       `${import.meta.env.BASE_URL}data/churches_vienna.database.json`,
@@ -291,7 +336,7 @@ async function start(): Promise<void> {
   }
   dataLoaded = true;
   populateFilters();
-  refresh(locationStatus !== 'locating');
+  refresh(locationStatus !== 'locating' && !preserveInitialView);
 }
 
 function populateFilters(): void {
