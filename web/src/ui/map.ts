@@ -5,6 +5,7 @@ import type { Position, Result } from '../types';
 
 const NEAREST_WITH_PIN = 4;
 const LOCATION_ZOOM = 13;
+const IP_LOCATION_ZOOM = 9;
 const AUSTRIA: L.LatLngTuple = [47.5162, 14.5501];
 
 // Default Leaflet icons break under bundlers, so use simple divIcons.
@@ -53,6 +54,10 @@ export class ChurchMap {
 
   invalidate(): void {
     this.map.invalidateSize();
+  }
+
+  showApproximateLocation(position: Position): void {
+    this.map.setView([position.latitude, position.longitude], IP_LOCATION_ZOOM, { animate: false });
   }
 
   setOrigin(position: Position | null): void {

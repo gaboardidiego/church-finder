@@ -89,6 +89,17 @@ describe('map popups', () => {
   });
 
   describe('location framing', () => {
+    it('shows an IP estimate at a broad zoom without creating a location marker', () => {
+      const element = document.createElement('div');
+      document.body.append(element);
+      const map = new ChurchMap(element, { onPick: vi.fn(), onSelect: vi.fn() });
+      map.showApproximateLocation({ latitude: 48.2, longitude: 16.3 });
+      expect(map['map'].getCenter()).toEqual(L.latLng(48.2, 16.3));
+      expect(map['map'].getZoom()).toBe(9);
+      expect(map['origin']).toBeNull();
+      element.remove();
+    });
+
     it('fits the origin and the four nearest churches', () => {
       const fitBounds = vi.spyOn(L.Map.prototype, 'fitBounds');
       const element = document.createElement('div');

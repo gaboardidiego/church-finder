@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
     setOrigin: vi.fn(),
     setResults: vi.fn(),
     fitToResults: vi.fn(),
+    showApproximateLocation: vi.fn(),
     focusChurch: vi.fn(),
     highlight: vi.fn(),
     invalidate: vi.fn(),
@@ -87,7 +88,14 @@ beforeEach(() => {
   const parsed = new DOMParser().parseFromString(html, 'text/html');
   document.head.innerHTML = parsed.head.innerHTML;
   document.body.innerHTML = parsed.body.innerHTML;
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => database }));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url: string) =>
+      url === 'https://ipwho.is/'
+        ? new Promise<Response>(() => {})
+        : Promise.resolve({ ok: true, json: async () => database }),
+    ),
+  );
 });
 
 afterEach(() => {
@@ -100,19 +108,23 @@ describe('application flow', () => {
   it('hides unknown language options and labels while retaining services', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          ...database,
-          services: {
-            ...database.services,
-            first: [
-              { date: today, start_time: '09:00' },
-              { date: today, start_time: '10:00', language: 'German' },
-            ],
-          },
-        }),
-      }),
+      vi.fn((url: string) =>
+        url === 'https://ipwho.is/'
+          ? new Promise<Response>(() => {})
+          : Promise.resolve({
+              ok: true,
+              json: async () => ({
+                ...database,
+                services: {
+                  ...database.services,
+                  first: [
+                    { date: today, start_time: '09:00' },
+                    { date: today, start_time: '10:00', language: 'German' },
+                  ],
+                },
+              }),
+            }),
+      ),
     );
     await start();
     expect(element('#language').textContent).not.toContain('Unknown');
@@ -293,6 +305,179 @@ describe('application flow', () => {
     expect(mocks.trackEvent).toHaveBeenCalledWith('use_location');
   });
 
+  it('uses an IP estimate only for a broad map view when browser location is unavailable', async () => {
+    const position = { latitude: 48.2, longitude: 16.3 };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve({
+          ok: true,
+          json: async () =>
+            url === 'https://ipwho.is/' ? { success: true, ...position } : database,
+        }),
+      ),
+    );
+    await start();
+    await vi.waitFor(() =>
+      expect(mocks.map.showApproximateLocation).toHaveBeenCalledWith(position),
+    );
+    expect(fetch).toHaveBeenCalledWith('https://ipwho.is/', { credentials: 'omit' });
+    expect(mocks.map.setOrigin).not.toHaveBeenCalled();
+    expect(mocks.map.fitToResults).not.toHaveBeenCalled();
+    expect(element('#status').textContent).toBe(messages.en.geolocationUnsupported);
+  });
+
+  it('does not let a late IP response override GPS', async () => {
+    let respondIp: (response: Response) => void = () => {};
+    let respondGps: PositionCallback = () => {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        url === 'https://ipwho.is/'
+          ? new Promise<Response>((resolve) => {
+              respondIp = resolve;
+            })
+          : Promise.resolve({ ok: true, json: async () => database }),
+      ),
+    );
+    vi.stubGlobal('navigator', {
+      languages: ['en'],
+      geolocation: { getCurrentPosition: (success: PositionCallback) => (respondGps = success) },
+    });
+    await start();
+    const gps = { latitude: 47, longitude: 15 };
+    respondGps({ coords: gps } as GeolocationPosition);
+    respondIp({
+      ok: true,
+      json: async () => ({ success: true, latitude: 48, longitude: 16 }),
+    } as Response);
+    await vi.waitFor(() => expect(mocks.map.setOrigin).toHaveBeenCalledWith(gps));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mocks.map.showApproximateLocation).not.toHaveBeenCalled();
+    expect(element('#status').textContent).toContain(messages.en.yourLocation);
+  });
+
+  it('replaces the IP view with a later GPS location', async () => {
+    let respondGps: PositionCallback = () => {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve({
+          ok: true,
+          json: async () =>
+            url === 'https://ipwho.is/'
+              ? { success: true, latitude: 48.2, longitude: 16.3 }
+              : database,
+        }),
+      ),
+    );
+    vi.stubGlobal('navigator', {
+      languages: ['en'],
+      geolocation: { getCurrentPosition: (success: PositionCallback) => (respondGps = success) },
+    });
+    await start();
+    await vi.waitFor(() => expect(mocks.map.showApproximateLocation).toHaveBeenCalledOnce());
+    const gps = { latitude: 47, longitude: 15 };
+    respondGps({ coords: gps } as GeolocationPosition);
+    expect(mocks.map.setOrigin).toHaveBeenCalledWith(gps);
+    expect(mocks.map.fitToResults).toHaveBeenCalled();
+    expect(element('#status').textContent).toContain(messages.en.yourLocation);
+  });
+
+  it('preserves an IP view if browser location subsequently fails', async () => {
+    let failGps: PositionErrorCallback = () => {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve({
+          ok: true,
+          json: async () =>
+            url === 'https://ipwho.is/'
+              ? { success: true, latitude: 48.2, longitude: 16.3 }
+              : database,
+        }),
+      ),
+    );
+    vi.stubGlobal('navigator', {
+      languages: ['en'],
+      geolocation: {
+        getCurrentPosition: (_success: PositionCallback, failure: PositionErrorCallback) =>
+          (failGps = failure),
+      },
+    });
+    await start();
+    await vi.waitFor(() => expect(mocks.map.showApproximateLocation).toHaveBeenCalledOnce());
+    failGps({ code: 1 } as GeolocationPositionError);
+    expect(mocks.map.fitToResults).not.toHaveBeenCalled();
+    expect(element('#status').textContent).toBe(messages.en.geolocationFailed);
+  });
+
+  it('ignores a late IP estimate after the user interacts with the map', async () => {
+    let respondIp: (response: Response) => void = () => {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        url === 'https://ipwho.is/'
+          ? new Promise<Response>((resolve) => {
+              respondIp = resolve;
+            })
+          : Promise.resolve({ ok: true, json: async () => database }),
+      ),
+    );
+    await start();
+    element('#map').dispatchEvent(new Event('pointerdown'));
+    respondIp({
+      ok: true,
+      json: async () => ({ success: true, latitude: 48, longitude: 16 }),
+    } as Response);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mocks.map.showApproximateLocation).not.toHaveBeenCalled();
+  });
+
+  it('does not overwrite a manually selected pin with a late IP estimate', async () => {
+    let respondIp: (response: Response) => void = () => {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        url === 'https://ipwho.is/'
+          ? new Promise<Response>((resolve) => {
+              respondIp = resolve;
+            })
+          : Promise.resolve({ ok: true, json: async () => database }),
+      ),
+    );
+    await start();
+    const pin = { latitude: 47, longitude: 15 };
+    mocks.handlers.onPick(pin);
+    respondIp({
+      ok: true,
+      json: async () => ({ success: true, latitude: 48, longitude: 16 }),
+    } as Response);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mocks.map.showApproximateLocation).not.toHaveBeenCalled();
+    expect(mocks.map.setOrigin).toHaveBeenLastCalledWith(pin);
+  });
+
+  it('ignores invalid IP estimates and keeps the normal map fallback', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve({
+          ok: true,
+          json: async () =>
+            url === 'https://ipwho.is/'
+              ? { success: true, latitude: 100, longitude: 16 }
+              : database,
+        }),
+      ),
+    );
+    await start();
+    await vi.waitFor(() => expect(warn).toHaveBeenCalledOnce());
+    expect(mocks.map.showApproximateLocation).not.toHaveBeenCalled();
+    expect(mocks.map.fitToResults).toHaveBeenCalled();
+  });
+
   it('tries a cached approximate location after a positioning failure', async () => {
     const getCurrentPosition = vi
       .fn<Geolocation['getCurrentPosition']>()
@@ -392,7 +577,14 @@ describe('application flow', () => {
   });
 
   it('shows load failures instead of rendering results', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 500 } as Response);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        url === 'https://ipwho.is/'
+          ? new Promise<Response>(() => {})
+          : Promise.resolve({ ok: false, status: 500 }),
+      ),
+    );
     await import('./main');
     await vi.waitFor(() => expect(element('#status').textContent).toBe(messages.en.loadFailed));
     expect(mocks.map.setResults).not.toHaveBeenCalled();
