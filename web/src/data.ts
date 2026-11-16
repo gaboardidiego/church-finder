@@ -1,4 +1,4 @@
-import type { Church, Service } from './types';
+import type { Church, Service, ServiceIndexEntry } from './types';
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -16,6 +16,37 @@ function parseService(raw: unknown): Service | null {
   };
 }
 
+function parseServices(raw: unknown): Service[] {
+  return (Array.isArray(raw) ? raw : [])
+    .map(parseService)
+    .filter((s): s is Service => s !== null)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+}
+
+const regions = new Set([
+  'wien',
+  'burgenland',
+  'kaernten',
+  'niederoesterreich',
+  'oberoesterreich',
+  'salzburg',
+  'steiermark',
+  'tirol',
+  'vorarlberg',
+]);
+
+function scheduleFilename(
+  region: string | undefined,
+  files: Record<string, unknown>,
+): string | null {
+  if (!region || !regions.has(region)) return null;
+  const filename = files[region];
+  return typeof filename === 'string' &&
+    new RegExp(`^services-${region}-[a-f0-9]+\\.json$`).test(filename)
+    ? filename
+    : null;
+}
+
 /** Converts the raw database JSON into churches, skipping entries that cannot be used. */
 export function parseDatabase(raw: unknown): Church[] {
   if (!isRecord(raw) || !Array.isArray(raw.churches)) return [];
@@ -29,10 +60,14 @@ export function parseDatabase(raw: unknown): Church[] {
     const longitude = Number(pos.longitude);
     if (!id || !Number.isFinite(latitude) || !Number.isFinite(longitude)) continue;
     const rawServices = servicesByChurch[id];
-    const services = (Array.isArray(rawServices) ? rawServices : [])
-      .map(parseService)
-      .filter((s): s is Service => s !== null)
-      .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+    const services = parseServices(rawServices);
+    const indexed = Array.isArray(item.service_index);
+    const serviceIndex: ServiceIndexEntry[] = indexed
+      ? (item.service_index as unknown[])
+          .map(parseService)
+          .filter((s): s is Service => s !== null)
+          .map(({ date, language }) => ({ date, language }))
+      : [];
     churches.push({
       id,
       name: str(item.name) || 'Unnamed church',
@@ -41,13 +76,95 @@ export function parseDatabase(raw: unknown): Church[] {
       religion: str(item.religion),
       denomination: str(item.denomination),
       services,
+      ...(indexed
+        ? {
+            region: str(item.region),
+            serviceIndex,
+            scheduleStatus: serviceIndex.length === 0 ? ('loaded' as const) : ('unloaded' as const),
+          }
+        : {}),
     });
   }
+
   return churches;
 }
 
+/** Shares requests by region and retains successful schedules for the lifetime of the index. */
+export class ScheduleLoader {
+  private requests = new Map<string, Promise<void>>();
+
+  constructor(
+    private churches: Church[],
+    private indexUrl: string,
+    private serviceFiles: Record<string, unknown>,
+  ) {}
+
+  load(church: Church): Promise<void> {
+    const region = church.region;
+    const filename = scheduleFilename(region, this.serviceFiles);
+    if (!region || !filename) {
+      church.scheduleStatus = 'error';
+      return Promise.reject(new Error('Missing or invalid schedule file'));
+    }
+    const existing = this.requests.get(region);
+    if (existing) return existing;
+    const group = this.churches.filter((item) => item.region === region && item.serviceIndex);
+    for (const item of group) item.scheduleStatus = 'loading';
+    const request = fetch(new URL(filename, new URL(this.indexUrl, document.baseURI)).href)
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Could not load schedules (${response.status})`);
+        const raw: unknown = await response.json();
+        if (!isRecord(raw) || !isRecord(raw.services)) throw new Error('Invalid schedule data');
+        const services = raw.services;
+        const parsed = new Map<string, Service[]>();
+        for (const item of group) {
+          const rawServices = services[item.id];
+          if (item.serviceIndex?.length && !Array.isArray(rawServices))
+            throw new Error('Missing church schedules');
+          const entries = parseServices(rawServices);
+          if (
+            item.serviceIndex?.some(
+              (summary) =>
+                !entries.some(
+                  (service) =>
+                    service.date === summary.date && service.language === summary.language,
+                ),
+            )
+          )
+            throw new Error('Incomplete church schedules');
+          parsed.set(item.id, entries);
+        }
+        for (const item of group) {
+          item.services = parsed.get(item.id) ?? [];
+          item.scheduleStatus = 'loaded';
+        }
+      })
+      .catch((error: unknown) => {
+        for (const item of group) item.scheduleStatus = 'error';
+        this.requests.delete(region);
+        throw error;
+      });
+    this.requests.set(region, request);
+    return request;
+  }
+}
 export async function loadChurches(url: string): Promise<Church[]> {
+  return (await loadDatabase(url)).churches;
+}
+
+export async function loadDatabase(
+  url: string,
+): Promise<{ churches: Church[]; serviceFiles: Record<string, unknown> }> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Could not load data (${response.status})`);
-  return parseDatabase(await response.json());
+  const raw: unknown = await response.json();
+  const churches = parseDatabase(raw);
+  const serviceFiles = isRecord(raw) && isRecord(raw.service_files) ? raw.service_files : {};
+  for (const church of churches)
+    if (church.serviceIndex && !scheduleFilename(church.region, serviceFiles))
+      church.scheduleStatus = 'error';
+  return {
+    churches,
+    serviceFiles,
+  };
 }

@@ -45,25 +45,19 @@ export function filterResults(
   weekend: boolean,
   today: string,
 ): Result[] {
-  const results = applyFilters(
+  return applyFiltersForDays(
     churches,
-    { ...filters, date: weekend ? null : filters.date },
+    filters,
     origin,
+    weekend ? weekendDates(today) : filters.date === null ? null : [filters.date],
   );
-  if (!weekend) return results;
-  const days = weekendDates(today);
-  return results
-    .map((result) => ({
-      ...result,
-      services: result.services.filter((service) => days.includes(service.date)),
-    }))
-    .filter((result) => result.services.length > 0);
 }
 
 export function collectLanguages(churches: Church[]): string[] {
   const set = new Set<string>();
   for (const church of churches)
-    for (const s of church.services) if (displayLanguage(s.language)) set.add(s.language);
+    for (const s of church.serviceIndex ?? church.services)
+      if (displayLanguage(s.language)) set.add(s.language);
   return [...set].sort((a, b) => a.localeCompare(b));
 }
 
@@ -78,18 +72,31 @@ export function applyFilters(
   filters: Filters,
   origin: Position | null,
 ): Result[] {
+  return applyFiltersForDays(
+    churches,
+    filters,
+    origin,
+    filters.date === null ? null : [filters.date],
+  );
+}
+
+function applyFiltersForDays(
+  churches: Church[],
+  filters: Filters,
+  origin: Position | null,
+  days: string[] | null,
+): Result[] {
   const query = normalize(filters.query);
   const results: Result[] = [];
   for (const church of churches) {
     if (query && !normalize(church.name).includes(query)) continue;
     if (filters.denomination && church.denomination !== filters.denomination) continue;
-    const services = church.services.filter(
-      (s) =>
-        (filters.date === null || s.date === filters.date) &&
-        (filters.language === ALL_LANGUAGES || s.language === filters.language),
-    );
-    const serviceFilterActive = filters.date !== null || filters.language !== ALL_LANGUAGES;
-    if (serviceFilterActive && services.length === 0) continue;
+    const matches = (s: { date: string; language: string }): boolean =>
+      (days === null || days.includes(s.date)) &&
+      (filters.language === ALL_LANGUAGES || s.language === filters.language);
+    const services = church.services.filter(matches);
+    const serviceFilterActive = days !== null || filters.language !== ALL_LANGUAGES;
+    if (serviceFilterActive && !(church.serviceIndex ?? church.services).some(matches)) continue;
     results.push({
       church,
       services,

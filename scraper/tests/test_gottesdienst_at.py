@@ -258,6 +258,21 @@ def test_build_database_merges_missing_positions(missing_first):
     assert database["services"][church["uuid"]] == complete["services"]
 
 
+def test_missing_position_uses_address_postcode_before_search_postcode():
+    entry = parse_search(RESULT)[0]
+    entry["church"]["position"] = None
+    database = build_database([{"postcode": "1010", "results": [entry]}])
+    assert database["churches"][0]["region"] == "salzburg"
+
+
+def test_missing_position_uses_search_postcode_when_address_has_none():
+    entry = parse_search(RESULT)[0]
+    entry["church"]["position"] = None
+    entry["church"]["address"] = "Some church"
+    database = build_database([{"postcode": "6900", "results": [entry]}])
+    assert database["churches"][0]["region"] == "vorarlberg"
+
+
 @pytest.mark.parametrize("field", ["name", "position"])
 def test_build_database_rejects_conflicting_known_details(field):
     first = parse_search(RESULT)[0]

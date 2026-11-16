@@ -41,6 +41,7 @@ export interface ListHandlers {
   onSelect: (id: string) => void;
   onOpenWebsite: (id: string) => void;
   onOpenMap: (id: string) => void;
+  onRetry?: (id: string) => void;
 }
 
 const svg = (paths: string): string =>
@@ -84,7 +85,24 @@ export function renderResults(
     if (meta) card.append(el('p', 'meta', humanize(meta)));
 
     const chips = el('div', 'service-list');
-    if (services.length === 0) {
+    if (church.scheduleStatus === 'error') {
+      chips.append(el('span', 'muted', text.schedulesFailed));
+      const retry = el('button', undefined, text.retry);
+      retry.type = 'button';
+      retry.addEventListener('click', (event) => {
+        event.stopPropagation();
+        handlers.onRetry?.(church.id);
+      });
+      chips.append(retry);
+    } else if (church.scheduleStatus === 'unloaded' || church.scheduleStatus === 'loading') {
+      chips.append(
+        el(
+          'span',
+          'muted',
+          church.scheduleStatus === 'loading' ? text.schedulesLoading : text.schedulesPending,
+        ),
+      );
+    } else if (services.length === 0) {
       chips.append(el('span', 'muted', text.noServicesListed));
     } else {
       const labels = services.map((s) => serviceLabel(s, showDates, locale)).filter(Boolean);

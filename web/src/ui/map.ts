@@ -1,7 +1,9 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { displayLanguage } from '../language';
+import { messages, type Locale, type Messages } from '../i18n';
 import type { Position, Result } from '../types';
+import { serviceLabel } from './list';
 
 const NEAREST_WITH_PIN = 4;
 const LOCATION_ZOOM = 13;
@@ -75,7 +77,12 @@ export class ChurchMap {
       .addTo(this.map);
   }
 
-  setResults(results: Result[]): void {
+  setResults(
+    results: Result[],
+    text: Messages = messages.en,
+    onRetry?: (id: string) => void,
+    locale: Locale = 'en',
+  ): void {
     this.layer.clearLayers();
     this.markers.clear();
     for (const { church, services } of results) {
@@ -83,23 +90,72 @@ export class ChurchMap {
         icon: churchIcon(false),
         title: church.name,
       });
-      const popup = document.createElement('div');
-      const title = document.createElement('strong');
-      title.textContent = church.name;
-      popup.append(title);
-      const serviceLabels = services
-        .map((s) => [s.startTime, displayLanguage(s.language)].filter(Boolean).join(' '))
-        .filter(Boolean)
-        .slice(0, 4);
-      if (serviceLabels.length > 0) {
-        popup.append(document.createElement('br'));
-        popup.append(serviceLabels.join(' · '));
-      }
-      marker.bindPopup(popup, { autoPan: false });
+      marker.bindPopup(
+        this.popupContent({ church, services, distanceKm: null }, text, onRetry, locale),
+        { autoPan: false },
+      );
       marker.on('click', () => this.handlers.onSelect(church.id));
       marker.addTo(this.layer);
       this.markers.set(church.id, marker);
     }
+  }
+
+  updateSchedule(
+    result: Result,
+    text: Messages,
+    onRetry: (id: string) => void,
+    locale: Locale,
+  ): void {
+    this.markers
+      .get(result.church.id)
+      ?.setPopupContent(this.popupContent(result, text, onRetry, locale));
+  }
+
+  private popupContent(
+    result: Result,
+    text: Messages,
+    onRetry: ((id: string) => void) | undefined,
+    locale: Locale,
+  ): HTMLElement {
+    const { church, services } = result;
+    const popup = document.createElement('div');
+    const title = document.createElement('strong');
+    title.textContent = church.name;
+    popup.append(title);
+    const status = church.scheduleStatus;
+    if (status === 'unloaded' || status === 'loading' || status === 'error') {
+      popup.append(document.createElement('br'));
+      popup.append(
+        status === 'error'
+          ? text.schedulesFailed
+          : status === 'loading'
+            ? text.schedulesLoading
+            : text.schedulesPending,
+      );
+      if (status === 'error') {
+        const retry = document.createElement('button');
+        retry.type = 'button';
+        retry.textContent = text.retry;
+        retry.addEventListener('click', (event) => {
+          event.stopPropagation();
+          onRetry?.(church.id);
+        });
+        popup.append(' ', retry);
+      }
+    } else {
+      const labels = services
+        .map((s) =>
+          church.serviceIndex
+            ? serviceLabel(s, true, locale)
+            : [s.startTime, displayLanguage(s.language)].filter(Boolean).join(' '),
+        )
+        .filter(Boolean)
+        .slice(0, 4);
+      if (labels.length) popup.append(document.createElement('br'), labels.join(' · '));
+      else if (church.serviceIndex)
+        popup.append(document.createElement('br'), text.noServicesListed);
+    }
+    return popup;
   }
 
   fitToResults(results: Result[], focus?: Position): void {
