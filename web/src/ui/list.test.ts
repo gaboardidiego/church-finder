@@ -86,6 +86,17 @@ describe('result cards', () => {
     expect(rendered.querySelector('.chip')?.textContent).toBe('10:00');
   });
 
+  it('shows Ember verification dates and indicates when they are unavailable', () => {
+    const ember = {
+      ...result,
+      church: { ...result.church, scheduleSource: 'ember' as const, lastVerifiedAt: '2020-08-03' },
+    };
+    expect(setup([ember]).container.textContent).toContain('Schedule last verified: 2020-08-03');
+    const unverified = { ...ember, church: { ...ember.church, lastVerifiedAt: undefined } };
+    expect(setup([unverified]).container.textContent).toContain(messages.en.verificationUnknown);
+    expect(setup().container.textContent).not.toContain('Schedule last verified');
+  });
+
   it('handles empty results, missing services and unsafe website URLs', () => {
     const { container } = setup([]);
     expect(container.textContent).toBe(messages.en.noServices);

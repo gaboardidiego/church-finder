@@ -1,13 +1,14 @@
 # Church Finder
 
-Find church services across Austria by day, language and location.
+Find church services in Austria and, where available, Italy by day, language and location.
 
 ## Python scraper
 
 The standalone Python tools are in [`scraper/`](scraper/). From that directory, run
 `uv sync --group dev` and `uv run pytest`; see its README for CLI commands and quality checks.
 The service importer uses Gottesdienst.at throughout Austria and looks up church websites in
-OpenStreetMap across Austria.
+OpenStreetMap across Austria. The Italy importer collects church data and recurring services from
+the [Ember API](https://ember.dpgu.me/developers/api/).
 
 ## Run the website
 
@@ -53,6 +54,12 @@ Runs do not retain checkpoints between attempts, and source limits may prevent c
 see the scraper README.
 The workflow's `GITHUB_TOKEN` push does not trigger other workflows or a GitHub Pages build;
 publishing the updated `docs/` through Pages may require a separate deployment.
+
+To collect Italy separately, run `uv run --project scraper churches-services --country italy`.
+This uses Ember and replaces the Italy index, leaving the Austrian database intact. The website
+loads both countries. Italy data has a 30-day upcoming-event horizon and must be refreshed
+regularly. Ember's recurring schedules may be old; the website shows their last verification date.
+See the scraper README for request pacing, checkpoint behavior, and coverage limitations.
 
 ## Check and deploy
 

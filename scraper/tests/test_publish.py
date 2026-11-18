@@ -175,7 +175,7 @@ def test_region_files_and_summaries_keep_all_services_and_survive_republication(
 
 
 def test_missing_position_without_postcode_region_stops_publication(tmp_path: Path):
-    with pytest.raises(ValueError, match="Cannot determine an Austrian state"):
+    with pytest.raises(ValueError, match="Cannot determine a valid region"):
         publish_database(
             {"churches": [{"uuid": "unknown"}], "services": {}},
             tmp_path / "index.json",

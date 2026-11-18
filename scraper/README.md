@@ -11,14 +11,14 @@ uv run ruff format --check .
 uv run ty check src
 ```
 
-Install Playwright's browser once before importing service schedules:
+Install Playwright's browser once before importing Austrian service schedules:
 
 ```sh
 uv run playwright install chromium
 ```
 
-Run `uv run churches-services --help`. The command accepts `--country austria` and
-defaults to Austria; unsupported countries are rejected. By default, it searches Austrian
+Run `uv run churches-services --help`. The command accepts `--country austria` or
+`--country italy` and defaults to Austria; unsupported countries are rejected. By default, it searches Austrian
 postcodes with Gottesdienst.at. `--vienna-only` restricts the search to Vienna postcodes, while
 repeatable `--postcode` options select individual postcodes.
 
@@ -110,3 +110,40 @@ database remains unchanged until the search succeeds; publication backs up the o
 website database. If the run is interrupted, repeat the same command **without** `--fresh` to
 resume; using `--fresh` again discards the new progress. Do not run multiple importers against
 the same checkpoint at the same time.
+
+## Italy
+
+```sh
+uv run churches-services --country italy
+```
+
+The [Ember Mass-times API](https://ember.dpgu.me/developers/api/) provides an open, paginated
+directory, including its Italian churches and structured recurring Mass schedules. The importer
+requests full church pages filtered by `country=IT`, with no authentication, and caches them in
+`.scraper-state/ember_italy.checkpoint.sqlite` for up to one day. It requests at most one page per
+second, resumes interrupted downloads, and only publishes after the complete paginated import
+succeeds. `--fresh` discards the Ember checkpoint; omit it when resuming. `--interval` can increase
+the delay but cannot lower it below one second. The previous `--source ember` option remains
+accepted. Do not run multiple importers against the same checkpoint at the same time.
+
+The Italy index is published independently to `web/public/data/churches_italy.database.json`,
+with content-addressed service files beside it. Each import replaces the Italy index and backs up
+its previous version; Austria's output is not overwritten. The website loads both indexes and
+displays an explicit warning if either fails. Use `--output` and `--state` to select different
+paths. A custom index and its service files must be placed in the website data directory to be
+used by the website. Existing historical indexes retain their original source credit when restored.
+
+Ember provides recurring rules, not confirmed individual events. The importer expands Mass rules,
+including exceptions and additions, for 30 calendar days starting with the current local day at
+each church; it does not generate confession or adoration entries. Regularly rerun the importer
+to advance this window. A completed checkpoint can be reused for a day; use `--fresh` for an
+immediate refresh. Languages reported as ISO codes are normalized where recognized. Churches
+without structured schedules remain listed without service times; free-text schedules are not
+interpreted. Closed and temporarily closed churches are excluded.
+
+Ember's times may be old or incomplete: a sample of 10,178 Italian churches contained many last
+verified in 2020 or 2021. The website displays the last verification date, or that it is unknown,
+alongside each Ember church. Dates generated from a recurrence are not proof that a particular
+celebration will take place; confirm with the parish. Ember asks clients to
+[credit the service](https://ember.dpgu.me/developers/), and the website links to Ember when
+its data is selected. The importer does not automatically refresh or schedule itself.

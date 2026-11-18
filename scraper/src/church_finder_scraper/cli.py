@@ -9,6 +9,9 @@ COUNTRY_MODULES = {
     "austria": {
         "services": "church_finder_scraper.austria.cli",
     },
+    "italy": {
+        "services": "church_finder_scraper.italy.cli",
+    },
 }
 
 

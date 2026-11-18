@@ -4,11 +4,12 @@ import { displayLanguage } from '../language';
 import { messages, type Locale, type Messages } from '../i18n';
 import type { Position, Result } from '../types';
 import { serviceLabel } from './list';
+import { verificationLabel } from './verification';
 
 const NEAREST_WITH_PIN = 4;
 const LOCATION_ZOOM = 13;
 const IP_LOCATION_ZOOM = 9;
-const AUSTRIA: L.LatLngTuple = [47.5162, 14.5501];
+const AUSTRIA_AND_ITALY: L.LatLngTuple = [44.5, 13];
 
 // Default Leaflet icons break under bundlers, so use simple divIcons.
 const CROSS =
@@ -43,7 +44,7 @@ export class ChurchMap {
     element: HTMLElement,
     private handlers: MapHandlers,
   ) {
-    this.map = L.map(element).setView(AUSTRIA, 7);
+    this.map = L.map(element).setView(AUSTRIA_AND_ITALY, 5);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -122,6 +123,8 @@ export class ChurchMap {
     const title = document.createElement('strong');
     title.textContent = church.name;
     popup.append(title);
+    const verification = verificationLabel(church, locale);
+    if (verification) popup.append(document.createElement('br'), verification);
     const status = church.scheduleStatus;
     if (status === 'unloaded' || status === 'loading' || status === 'error') {
       popup.append(document.createElement('br'));

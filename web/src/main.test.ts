@@ -75,7 +75,17 @@ function change(selector: string, value: string): void {
   input.dispatchEvent(new Event('change'));
 }
 
-async function start(): Promise<void> {
+async function start(italyResponse?: Promise<Response>): Promise<void> {
+  const currentFetch = globalThis.fetch;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url: string, init?: RequestInit) =>
+      url.includes('churches_italy.database.json')
+        ? (italyResponse ??
+          Promise.resolve({ ok: true, json: async () => ({ churches: [], services: {} }) }))
+        : currentFetch(url, init),
+    ),
+  );
   await import('./main');
   await vi.waitFor(() => expect(mocks.map.setResults).toHaveBeenCalled());
 }
@@ -106,6 +116,59 @@ afterEach(() => {
 });
 
 describe('application flow', () => {
+  it('credits Ember before any Italy records have been imported', async () => {
+    await start();
+    const link = element<HTMLAnchorElement>('#italy-source');
+    expect(link.href).toBe('https://ember.dpgu.me/app/');
+    expect(link.textContent).toBe('Ember');
+  });
+
+  it('credits Ember when its Italy index is loaded', async () => {
+    const italy = {
+      churches: [
+        {
+          ...database.churches[0],
+          uuid: 'italian',
+          schedule_source: 'ember',
+          last_verified_at: '2020-08-03',
+        },
+      ],
+      services: { italian: database.services.first },
+    };
+    await start(Promise.resolve({ ok: true, json: async () => italy } as Response));
+    const link = element<HTMLAnchorElement>('#italy-source');
+    expect(link.href).toBe('https://ember.dpgu.me/app/');
+    expect(link.textContent).toBe('Ember');
+    expect(element('#results').textContent).toContain('Schedule last verified: 2020-08-03');
+  });
+
+  it('retains the original source credit for a restored legacy Italy index', async () => {
+    const italy = {
+      churches: [
+        {
+          ...database.churches[0],
+          uuid: 'italian',
+          region: 'italy-example',
+          service_index: [],
+        },
+      ],
+      service_files: { 'italy-example': 'services-italy-example-abcd.json' },
+      services: {},
+    };
+    await start(Promise.resolve({ ok: true, json: async () => italy } as Response));
+    const link = element<HTMLAnchorElement>('#italy-source');
+    expect(link.href).toBe('https://orarimesse.it/');
+    expect(link.textContent).toBe('OrariMesse.it');
+  });
+
+  it('shows Austrian results with an explicit warning when the Italy index fails', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await start(Promise.resolve({ ok: false, status: 503 } as Response));
+    expect(element('#results').textContent).toContain('First Church');
+    expect(element('#status').textContent).toBe(messages.en.partialLoadFailed);
+    expect(error).toHaveBeenCalledOnce();
+  });
+
   it('filters indexed schedules without requests and lazily loads visible cards', async () => {
     let observerCallback: IntersectionObserverCallback | undefined;
     vi.stubGlobal(

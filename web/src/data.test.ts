@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { loadDatabase, parseDatabase, ScheduleLoader } from './data';
+import { loadDatabase, loadDatabases, parseDatabase, ScheduleLoader } from './data';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -73,9 +73,83 @@ describe('regional schedules', () => {
       ),
     ).rejects.toThrow('Missing or invalid');
   });
+
+  it('combines country indexes and loads Italian diocese schedules', async () => {
+    const italian = {
+      churches: [
+        church('italy', {
+          region: 'italy-example',
+          service_index: [{ date: '2026-10-24', language: 'Unknown' }],
+        }),
+      ],
+      service_files: { 'italy-example': 'services-italy-example-abcd1234.json' },
+      services: {},
+    };
+    const fetch = vi.fn((url: string) =>
+      Promise.resolve({
+        ok: true,
+        json: async () =>
+          url.includes('italy.json')
+            ? italian
+            : url.includes('services-italy-example')
+              ? { services: { italy: [{ date: '2026-10-24', start_time: '09:00' }] } }
+              : index,
+      }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const database = await loadDatabases(['/data/austria.json', '/data/italy.json']);
+    expect(database.churches).toHaveLength(3);
+    const italianChurch = database.churches[2]!;
+    await new ScheduleLoader(database.churches, '/data/austria.json', database.serviceFiles).load(
+      italianChurch,
+    );
+    expect(italianChurch.services[0]?.startTime).toBe('09:00');
+    expect(fetch.mock.calls.some(([url]) => url.includes('services-italy-example-'))).toBe(true);
+  });
+
+  it('rejects duplicate data and country indexes in different directories', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => index }));
+    await expect(loadDatabases(['/data/a.json', '/data/b.json'])).rejects.toThrow(
+      'Duplicate church ID',
+    );
+    await expect(loadDatabases(['/data/a.json', '/other/b.json'])).rejects.toThrow(
+      'share a directory',
+    );
+  });
+
+  it('reports a failed country while retaining the other country', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => index })
+      .mockResolvedValueOnce({ ok: false, status: 503 });
+    vi.stubGlobal('fetch', fetch);
+    const database = await loadDatabases(['/data/austria.json', '/data/italy.json']);
+    expect(database.churches).toHaveLength(2);
+    expect(database.failures).toHaveLength(1);
+    expect(database.failures[0]?.url).toBe('/data/italy.json');
+    fetch.mockResolvedValue({ ok: false, status: 503 });
+    await expect(loadDatabases(['/data/austria.json', '/data/italy.json'])).rejects.toThrow(
+      'Could not load any country database',
+    );
+  });
 });
 
 describe('parseDatabase', () => {
+  it('retains Ember verification metadata without affecting other sources', () => {
+    const churches = parseDatabase({
+      churches: [
+        church('1', { schedule_source: 'ember', last_verified_at: '2020-08-03' }),
+        church('2', { schedule_source: 'ember', last_verified_at: 'invalid' }),
+        church('3'),
+      ],
+      services: {},
+    });
+    expect(churches[0]?.scheduleSource).toBe('ember');
+    expect(churches[0]?.lastVerifiedAt).toBe('2020-08-03');
+    expect(churches[1]?.lastVerifiedAt).toBeUndefined();
+    expect(churches[2]?.scheduleSource).toBeUndefined();
+  });
+
   it('joins services to churches and sorts them', () => {
     const result = parseDatabase({
       churches: [church('1')],

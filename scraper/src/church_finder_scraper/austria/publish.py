@@ -60,12 +60,14 @@ def _json(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":")) + "\n"
 
 
-def _split_database(database: dict) -> tuple[dict, dict[str, str]]:
+def _split_database(database: dict, regions: set[str] | None = None) -> tuple[dict, dict[str, str]]:
     churches = database.get("churches")
     services = database.get("services")
     if not isinstance(churches, list) or not isinstance(services, dict):
         raise ValueError("Database must contain churches and services")
-    regional: dict[str, dict] = {region: {} for region in REGIONS.values()}
+    regional: dict[str, dict] = {
+        region: {} for region in (REGIONS.values() if regions is None else sorted(regions))
+    }
     index = []
     seen = set()
     for church in churches:
@@ -78,9 +80,13 @@ def _split_database(database: dict) -> tuple[dict, dict[str, str]]:
         rows = services.get(church_id, [])
         if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
             raise ValueError(f"Database services must be arrays of objects: {church_id}")
-        region = region_for_position(church.get("position")) or church.get("region")
+        region = (
+            region_for_position(church.get("position")) or church.get("region")
+            if regions is None
+            else church.get("region")
+        )
         if region not in regional:
-            raise ValueError(f"Cannot determine an Austrian state for church {church_id}")
+            raise ValueError(f"Cannot determine a valid region for church {church_id}")
         regional[region][church_id] = rows
         summary = {(row.get("date", ""), row.get("language", "")) for row in rows}
         index.append(
@@ -103,10 +109,10 @@ def _split_database(database: dict) -> tuple[dict, dict[str, str]]:
 
 
 def publish_database(
-    database: dict, destination: Path, backup_dir: Path
+    database: dict, destination: Path, backup_dir: Path, *, regions: set[str] | None = None
 ) -> tuple[tuple[int, int] | None, tuple[int, int], Path | None]:
     destination.parent.mkdir(parents=True, exist_ok=True)
-    index, regional = _split_database(database)
+    index, regional = _split_database(database, regions)
     previous_counts = _database_counts(destination) if destination.exists() else None
     new_counts = (len(database["churches"]), sum(map(len, database["services"].values())))
     backup_path = None

@@ -39,7 +39,7 @@ function scheduleFilename(
   region: string | undefined,
   files: Record<string, unknown>,
 ): string | null {
-  if (!region || !regions.has(region)) return null;
+  if (!region || (!regions.has(region) && !/^italy-[a-z0-9-]+$/.test(region))) return null;
   const filename = files[region];
   return typeof filename === 'string' &&
     new RegExp(`^services-${region}-[a-f0-9]+\\.json$`).test(filename)
@@ -61,6 +61,7 @@ export function parseDatabase(raw: unknown): Church[] {
     if (!id || !Number.isFinite(latitude) || !Number.isFinite(longitude)) continue;
     const rawServices = servicesByChurch[id];
     const services = parseServices(rawServices);
+    const lastVerifiedAt = str(item.last_verified_at);
     const indexed = Array.isArray(item.service_index);
     const serviceIndex: ServiceIndexEntry[] = indexed
       ? (item.service_index as unknown[])
@@ -76,6 +77,12 @@ export function parseDatabase(raw: unknown): Church[] {
       religion: str(item.religion),
       denomination: str(item.denomination),
       services,
+      ...(item.schedule_source === 'ember'
+        ? {
+            scheduleSource: 'ember' as const,
+            ...(/^\d{4}-\d{2}-\d{2}$/.test(lastVerifiedAt) ? { lastVerifiedAt } : {}),
+          }
+        : {}),
       ...(indexed
         ? {
             region: str(item.region),
@@ -167,4 +174,42 @@ export async function loadDatabase(
     churches,
     serviceFiles,
   };
+}
+
+export async function loadDatabases(urls: string[]): Promise<{
+  churches: Church[];
+  serviceFiles: Record<string, unknown>;
+  failures: { url: string; error: unknown }[];
+}> {
+  if (!urls.length) throw new Error('No database URLs');
+  const directories = urls.map((url) => new URL('.', new URL(url, document.baseURI)).href);
+  if (directories.some((directory) => directory !== directories[0]))
+    throw new Error('Database files must share a directory');
+  const results = await Promise.allSettled(urls.map(loadDatabase));
+  const failures = results.flatMap((result, index) =>
+    result.status === 'rejected' ? [{ url: urls[index]!, error: result.reason }] : [],
+  );
+  if (failures.length === urls.length)
+    throw new AggregateError(
+      failures.map(({ error }) => error),
+      'Could not load any country database',
+    );
+  const churches: Church[] = [];
+  const ids = new Set<string>();
+  const serviceFiles: Record<string, unknown> = {};
+  for (const result of results) {
+    if (result.status === 'rejected') continue;
+    const database = result.value;
+    for (const church of database.churches) {
+      if (ids.has(church.id)) throw new Error(`Duplicate church ID: ${church.id}`);
+      ids.add(church.id);
+      churches.push(church);
+    }
+    for (const [region, filename] of Object.entries(database.serviceFiles)) {
+      if (Object.hasOwn(serviceFiles, region))
+        throw new Error(`Duplicate schedule region: ${region}`);
+      serviceFiles[region] = filename;
+    }
+  }
+  return { churches, serviceFiles, failures };
 }

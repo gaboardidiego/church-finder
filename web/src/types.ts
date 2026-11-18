@@ -22,6 +22,8 @@ export interface Church {
   religion: string;
   denomination: string;
   services: Service[];
+  scheduleSource?: 'ember';
+  lastVerifiedAt?: string;
   region?: string;
   serviceIndex?: ServiceIndexEntry[];
   scheduleStatus?: 'unloaded' | 'loading' | 'loaded' | 'error';

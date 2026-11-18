@@ -3,8 +3,8 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 from itertools import product
-from urllib.parse import urlsplit
 
+from ..websites import website_url
 from .config import LOG
 from .osm.fetch import fetch_records
 
@@ -53,26 +53,8 @@ def _coordinates(latitude, longitude) -> Point | None:
 def _website(record: dict) -> str | None:
     tags = record.get("tags") or {}
     for value in (record.get("website"), tags.get("contact:website")):
-        if not isinstance(value, str):
-            continue
-        value = value.strip()
-        if not value or any(char.isspace() or char in ";,\\<>" for char in value):
-            continue
-        if "://" not in value:
-            value = "https://" + value
-        try:
-            parsed = urlsplit(value)
-            if (
-                parsed.scheme.lower() in {"http", "https"}
-                and parsed.hostname
-                and "." in parsed.hostname
-                and parsed.username is None
-                and parsed.password is None
-                and parsed.port != 0
-            ):
-                return value
-        except ValueError:
-            continue
+        if website := website_url(value):
+            return website
     return None
 
 

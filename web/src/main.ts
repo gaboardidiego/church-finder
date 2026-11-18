@@ -1,5 +1,5 @@
 import { initAnalytics, trackEvent } from './analytics';
-import { loadDatabase, ScheduleLoader } from './data';
+import { loadDatabases, ScheduleLoader } from './data';
 import { formatMessage, isLocale, messages, resolveLocale } from './i18n';
 import { ALL_DENOMINATIONS, ALL_LANGUAGES, dateForDay, filterResults, toIsoDate } from './filters';
 import type { Church, Filters, Position, Result } from './types';
@@ -47,6 +47,7 @@ const state: {
 
 let dataLoaded = false;
 let dataLoadFailed = false;
+let dataPartiallyFailed = false;
 let locationRequest = 0;
 let locationStatus: 'locating' | 'geolocationUnsupported' | 'geolocationFailed' | null = null;
 let pendingChurchFocus: string | null = null;
@@ -117,6 +118,7 @@ function setStatus(message: string): void {
 
 function updateStatus(count: number): void {
   if (dataLoadFailed) setStatus(messages[locale].loadFailed);
+  else if (dataPartiallyFailed) setStatus(messages[locale].partialLoadFailed);
   else if (locationStatus) setStatus(messages[locale][locationStatus]);
   else if (state.origin && state.originLabel)
     setStatus(
@@ -407,8 +409,21 @@ async function start(): Promise<void> {
   if (allowIpLocation) void locateByIp();
   try {
     const url = `${import.meta.env.BASE_URL}data/churches_vienna.database.json`;
-    const database = await loadDatabase(url);
+    const italyUrl = `${import.meta.env.BASE_URL}data/churches_italy.database.json`;
+    const database = await loadDatabases([url, italyUrl]);
     state.churches = database.churches;
+    if (
+      state.churches.some(
+        (church) => church.region?.startsWith('italy-') && church.scheduleSource !== 'ember',
+      )
+    ) {
+      const sourceLink = $<HTMLAnchorElement>('#italy-source');
+      sourceLink.href = 'https://orarimesse.it/';
+      sourceLink.textContent = 'OrariMesse.it';
+    }
+    dataPartiallyFailed = database.failures.length > 0;
+    for (const failure of database.failures)
+      console.error(`Could not load country data from ${failure.url}:`, failure.error);
     scheduleLoader = new ScheduleLoader(state.churches, url, database.serviceFiles);
   } catch {
     dataLoadFailed = true;

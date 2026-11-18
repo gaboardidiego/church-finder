@@ -4,7 +4,7 @@ Project guide for Church Finder.
 
 ## Project layout
 
-- `web/` is the static, frontend-only Austria site, built with Vite, TypeScript and Leaflet.
+- `web/` is the static, frontend-only Austria and Italy site, built with Vite, TypeScript and Leaflet.
 - `scripts/` contains convenience scripts for checks and local website preview.
 - `.scraper-state/` holds local checkpoints and is ignored by Git.
 - The site uses OpenStreetMap tiles and GoatCounter analytics. It has no backend.
@@ -44,10 +44,12 @@ data limitations.
 
 ## Website data
 
-- The website loads `web/public/data/churches_vienna.database.json`; the legacy filename is kept
-  for URL compatibility, while the published data covers Austria.
+- The website loads separate `churches_vienna.database.json` and `churches_italy.database.json`
+  indexes from `web/public/data/`. The Vienna filename is retained for URL compatibility.
 - The Austria services importer uses Gottesdienst.at, enriches websites from OpenStreetMap,
   and publishes the compact database directly to the website, backing up its previous version.
+- Italy imports use Ember and publish independently of Austria. See `scraper/README.md` for
+  request pacing and data limitations.
 - Schema: `{ churches: [{ uuid, name, website, position: { latitude, longitude }, religion, denomination }], services: { [uuid]: [{ language, start_time, date }] } }`.
 - Services may be empty. `web/src/data.ts` skips unusable entries and supplies "Unnamed church"
   when a name is missing.
@@ -75,5 +77,5 @@ Keep logic in pure functions where practical and add tests in adjacent `*.test.t
 
 ## Geographic scope
 
-The website and service importer, including its OSM website enrichment, cover Austria.
-The website data URL is in `web/src/main.ts`, and the default map center is Austria.
+The website supports Austria and Italy; Italy coverage depends on Ember's data.
+OSM website enrichment covers Austria only. Website data URLs are in `web/src/main.ts`.

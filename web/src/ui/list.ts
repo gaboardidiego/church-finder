@@ -2,6 +2,7 @@ import { formatDistance } from '../geo';
 import { formatMessage, type Locale, type Messages } from '../i18n';
 import { displayLanguage } from '../language';
 import type { Position, Result, Service } from '../types';
+import { verificationLabel } from './verification';
 
 const el = <K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -83,6 +84,8 @@ export function renderResults(
 
     const meta = [church.denomination, church.religion].find(Boolean);
     if (meta) card.append(el('p', 'meta', humanize(meta)));
+    const verification = verificationLabel(church, locale);
+    if (verification) card.append(el('p', 'meta', verification));
 
     const chips = el('div', 'service-list');
     if (church.scheduleStatus === 'error') {

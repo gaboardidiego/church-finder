@@ -21,6 +21,8 @@ describe('map popups', () => {
         religion: '',
         denomination: '',
         services: [],
+        scheduleSource: 'ember',
+        lastVerifiedAt: '2020-08-03',
         region: 'wien',
         serviceIndex: [{ date: '2026-10-24', language: 'German' }],
         scheduleStatus: 'loading',
@@ -30,6 +32,9 @@ describe('map popups', () => {
     };
     map.setResults([result], messages.en, retry);
     element.querySelector<HTMLElement>('.church-marker')!.click();
+    expect(element.querySelector('.leaflet-popup-content')?.textContent).toContain(
+      'Schedule last verified: 2020-08-03',
+    );
     expect(element.querySelector('.leaflet-popup-content')?.textContent).toContain(
       messages.en.schedulesLoading,
     );

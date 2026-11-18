@@ -3,7 +3,10 @@ export type Locale = (typeof locales)[number];
 
 export const messages = {
   en: {
-    scopeAlert: 'Church-service listings from across Austria are shown.',
+    scopeAlert: 'Church-service listings from Austria and, where available, Italy are shown.',
+    italySource: 'Italian schedules:',
+    scheduleVerified: 'Schedule last verified: {date}',
+    verificationUnknown: 'Schedule verification date unavailable',
     churchName: 'Church name…',
     useLocation: '◎ Use my location',
     today: 'Today',
@@ -27,6 +30,7 @@ export const messages = {
     locating: 'Locating…',
     geolocationFailed: 'Could not get your location. Click the map to drop a pin instead.',
     loadFailed: 'Could not load church data.',
+    partialLoadFailed: 'Could not load all country data; some results may be missing.',
     allLanguages: 'All languages',
     allDenominations: 'All denominations',
     noChurches: '{count} churches',
@@ -41,12 +45,15 @@ export const messages = {
     moreChurches: '+{count} churches',
     website: 'Website',
     directions: 'Directions',
-    title: 'Church Finder Austria – Church Services, Mass Times & Liturgies',
+    title: 'Church Finder Austria & Italy – Church Services, Mass Times & Liturgies',
     description:
-      'Find church services across Austria by day, language and location, with times and map.',
+      'Find church services in Austria and Italy by day, language and location, with times and map.',
   },
   de: {
-    scopeAlert: 'Gottesdienste aus ganz Österreich werden angezeigt.',
+    scopeAlert: 'Gottesdienste aus Österreich und, soweit verfügbar, Italien werden angezeigt.',
+    italySource: 'Italienische Gottesdienste:',
+    scheduleVerified: 'Gottesdienste zuletzt bestätigt: {date}',
+    verificationUnknown: 'Bestätigungsdatum der Gottesdienste nicht verfügbar',
     churchName: 'Kirchenname…',
     useLocation: '◎ Meinen Standort verwenden',
     today: 'Heute',
@@ -71,6 +78,7 @@ export const messages = {
     geolocationFailed:
       'Standort konnte nicht ermittelt werden. Klicke stattdessen auf die Karte, um einen Pin zu setzen.',
     loadFailed: 'Kirchendaten konnten nicht geladen werden.',
+    partialLoadFailed: 'Nicht alle Länderdaten konnten geladen werden; Ergebnisse können fehlen.',
     allLanguages: 'Alle Sprachen',
     allDenominations: 'Alle Konfessionen',
     noChurches: '{count} Kirchen',
@@ -86,12 +94,15 @@ export const messages = {
     moreChurches: '+{count} Kirchen',
     website: 'Website',
     directions: 'Route',
-    title: 'Church Finder Österreich – Gottesdienste, Messen & Liturgien',
+    title: 'Church Finder Österreich & Italien – Gottesdienste, Messen & Liturgien',
     description:
-      'Finde Gottesdienste in ganz Österreich nach Tag, Sprache und Standort, mit Uhrzeiten und Karte.',
+      'Finde Gottesdienste in Österreich und Italien nach Tag, Sprache und Standort, mit Uhrzeiten und Karte.',
   },
   it: {
-    scopeAlert: 'Sono mostrati gli orari delle funzioni religiose in tutta l’Austria.',
+    scopeAlert: 'Sono mostrate le celebrazioni in Austria e, ove disponibili, in Italia.',
+    italySource: 'Orari italiani:',
+    scheduleVerified: 'Orari verificati il: {date}',
+    verificationUnknown: 'Data di verifica degli orari non disponibile',
     churchName: 'Nome della chiesa…',
     useLocation: '◎ Usa la mia posizione',
     today: 'Oggi',
@@ -116,6 +127,8 @@ export const messages = {
     geolocationFailed:
       'Impossibile trovare la posizione. Fai clic sulla mappa per aggiungere un segnaposto.',
     loadFailed: 'Impossibile caricare i dati delle chiese.',
+    partialLoadFailed:
+      'Impossibile caricare tutti i dati nazionali; alcuni risultati potrebbero mancare.',
     allLanguages: 'Tutte le lingue',
     allDenominations: 'Tutte le confessioni',
     noChurches: '{count} chiese',
@@ -130,9 +143,9 @@ export const messages = {
     moreChurches: '+{count} chiese',
     website: 'Sito web',
     directions: 'Indicazioni',
-    title: 'Church Finder Austria – Celebrazioni, messe e liturgie',
+    title: 'Church Finder Austria e Italia – Celebrazioni, messe e liturgie',
     description:
-      'Trova le celebrazioni in tutta l’Austria per giorno, lingua e posizione, con orari e mappa.',
+      'Trova le celebrazioni in Austria e Italia per giorno, lingua e posizione, con orari e mappa.',
   },
 } as const;
 
