@@ -282,6 +282,7 @@ def test_fresh_services_replaces_old_data_and_resumes_after_interruption(tmp_pat
     assert client.postcode.call_args_list == [(("1010",),), (("2000",),), (("2000",),)]
     database = json.loads(website.read_text())
     assert [church["name"] for church in database["churches"]] == ["New church"]
+    assert database["churches"][0]["service_index"] == {"Unknown": ["2026-11-13"]}
     regional = json.loads((website.parent / database["service_files"]["wien"]).read_text())
     assert sum(map(len, regional["services"].values())) == 1
     backups = list((tmp_path / "backups").iterdir())

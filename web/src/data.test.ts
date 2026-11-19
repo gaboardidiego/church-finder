@@ -135,6 +135,32 @@ describe('regional schedules', () => {
 });
 
 describe('parseDatabase', () => {
+  it('accepts grouped and legacy summaries with the same date and language pairs', () => {
+    const churches = parseDatabase({
+      churches: [
+        church('grouped', {
+          region: 'wien',
+          service_index: {
+            German: ['2026-10-24', '2026-10-25'],
+            '': ['2026-10-24', 'invalid'],
+          },
+        }),
+        church('legacy', {
+          region: 'wien',
+          service_index: [
+            { date: '2026-10-24', language: 'German' },
+            { date: '2026-10-25', language: 'German' },
+            { date: '2026-10-24', language: '' },
+          ],
+        }),
+      ],
+      services: {},
+    });
+    expect(churches[0]?.serviceIndex).toEqual(churches[1]?.serviceIndex);
+    expect(churches[0]?.serviceIndex).toContainEqual({ date: '2026-10-24', language: 'Unknown' });
+    expect(churches[0]?.scheduleStatus).toBe('unloaded');
+  });
+
   it('retains Ember verification metadata without affecting other sources', () => {
     const churches = parseDatabase({
       churches: [

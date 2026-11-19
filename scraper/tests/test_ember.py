@@ -184,9 +184,18 @@ def test_ember_cli_uses_its_own_checkpoint_and_publishes(tmp_path: Path, source_
             == 0
         )
     assert importer.call_args.args[0].name == "ember_italy.checkpoint.sqlite"
-    assert (
-        json.loads(output.read_text(encoding="utf-8"))["churches"][0]["schedule_source"] == "ember"
+    index = json.loads(output.read_text(encoding="utf-8"))
+    published_church = index["churches"][0]
+    assert published_church["schedule_source"] == "ember"
+    assert published_church["service_index"] == {
+        "Italian": ["2026-11-22", "2026-11-29", "2026-12-06", "2026-12-13"]
+    }
+    schedule = json.loads(
+        (output.parent / index["service_files"][published_church["region"]]).read_text(
+            encoding="utf-8"
+        )
     )
+    assert schedule["services"][published_church["uuid"]] == result["services"]
     with pytest.raises(SystemExit):
         cli.dispatch("services", ["--country", "italy", "--source", "ember", "--diocese", "rome"])
     with pytest.raises(SystemExit):

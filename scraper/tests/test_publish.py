@@ -29,10 +29,7 @@ def test_publish_database_moves_previous_version_to_backup(tmp_path: Path):
     assert json.loads(backup_path.read_text(encoding="utf-8")) == previous
     index = json.loads(destination.read_text(encoding="utf-8"))
     assert index["services"] == {}
-    assert index["churches"][0]["service_index"] == [
-        {"date": "2026-01-02", "language": ""},
-        {"date": "2026-01-03", "language": ""},
-    ]
+    assert index["churches"][0]["service_index"] == {"": ["2026-01-02", "2026-01-03"]}
     regional = json.loads(
         (destination.parent / index["service_files"]["wien"]).read_text(encoding="utf-8")
     )
@@ -155,7 +152,7 @@ def test_region_files_and_summaries_keep_all_services_and_survive_republication(
     index = json.loads(destination.read_text(encoding="utf-8"))
     assert len(index["service_files"]) == 9
     assert index["churches"][0]["region"] == "wien"
-    assert index["churches"][0]["service_index"] == [{"date": "2026-01-01", "language": "German"}]
+    assert index["churches"][0]["service_index"] == {"German": ["2026-01-01"]}
     vienna_file = destination.parent / index["service_files"]["wien"]
     assert json.loads(vienna_file.read_text(encoding="utf-8"))["services"] == {
         "vienna": database["services"]["vienna"]
@@ -169,9 +166,16 @@ def test_region_files_and_summaries_keep_all_services_and_survive_republication(
     assert backup is not None
     assert json.loads(backup.read_text(encoding="utf-8")) == index
     assert vienna_file.exists()
-    assert json.loads(destination.read_text(encoding="utf-8"))["service_files"]["wien"] != (
-        vienna_file.name
+    updated = json.loads(destination.read_text(encoding="utf-8"))
+    assert updated["churches"][0]["service_index"] == {
+        "German": ["2026-01-01"],
+        "English": ["2026-01-03"],
+    }
+    updated_services = json.loads(
+        (destination.parent / updated["service_files"]["wien"]).read_text(encoding="utf-8")
     )
+    assert updated_services["services"]["vienna"] == database["services"]["vienna"]
+    assert updated["service_files"]["wien"] != vienna_file.name
 
 
 def test_missing_position_without_postcode_region_stops_publication(tmp_path: Path):

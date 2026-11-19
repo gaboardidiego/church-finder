@@ -89,13 +89,14 @@ def _split_database(database: dict, regions: set[str] | None = None) -> tuple[di
             raise ValueError(f"Cannot determine a valid region for church {church_id}")
         regional[region][church_id] = rows
         summary = {(row.get("date", ""), row.get("language", "")) for row in rows}
+        grouped: dict[str, list[str]] = {}
+        for date, language in sorted(summary):
+            grouped.setdefault(language, []).append(date)
         index.append(
             {
                 **church,
                 "region": region,
-                "service_index": [
-                    {"date": date, "language": language} for date, language in sorted(summary)
-                ],
+                "service_index": grouped,
             }
         )
     if services.keys() - seen:

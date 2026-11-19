@@ -7,11 +7,45 @@ import { ChurchMap } from './map';
 afterEach(() => vi.restoreAllMocks());
 
 describe('map popups', () => {
+  it('clusters nearby churches while retaining their individual markers', () => {
+    const element = document.createElement('div');
+    Object.defineProperties(element, {
+      clientWidth: { value: 800 },
+      clientHeight: { value: 600 },
+    });
+    document.body.append(element);
+    const map = new ChurchMap(element, { onPick: vi.fn(), onSelect: vi.fn() });
+    map['map'].setView([48.2, 16.3], 8);
+    const results: Result[] = Array.from({ length: 100 }, (_, index) => ({
+      church: {
+        id: String(index),
+        name: `Church ${index}`,
+        website: '',
+        position: { latitude: 48.2 + index * 0.0001, longitude: 16.3 },
+        religion: '',
+        denomination: '',
+        services: [],
+      },
+      services: [],
+      distanceKm: null,
+    }));
+    map.setResults(results);
+    expect(map['markers'].size).toBe(100);
+    expect(element.querySelectorAll('.marker-cluster').length).toBeGreaterThan(0);
+    expect(element.querySelectorAll('.church-marker').length).toBeLessThan(100);
+    element.remove();
+  });
+
   it('updates an open popup with errors, retry and loaded schedule', () => {
     const element = document.createElement('div');
+    Object.defineProperties(element, {
+      clientWidth: { value: 800 },
+      clientHeight: { value: 600 },
+    });
     document.body.append(element);
     const retry = vi.fn();
     const map = new ChurchMap(element, { onPick: vi.fn(), onSelect: vi.fn() });
+    map['map'].setView([48.2, 16.3], 13);
     const result: Result = {
       church: {
         id: 'one',
@@ -52,9 +86,14 @@ describe('map popups', () => {
 
   it('omits unknown languages while retaining known languages and service times', () => {
     const element = document.createElement('div');
+    Object.defineProperties(element, {
+      clientWidth: { value: 800 },
+      clientHeight: { value: 600 },
+    });
     document.body.append(element);
     const onSelect = vi.fn(() => map.focusChurch([result], result.church.position));
     const map = new ChurchMap(element, { onPick: vi.fn(), onSelect });
+    map['map'].setView([48.2, 16.3], 13);
     const result: Result = {
       church: {
         id: 'one',

@@ -116,6 +116,66 @@ afterEach(() => {
 });
 
 describe('application flow', () => {
+  it('debounces name searches without losing the final query', async () => {
+    await start();
+    mocks.map.setResults.mockClear();
+    const search = element<HTMLInputElement>('#name-search');
+    for (const value of ['s', 'se', 'second']) {
+      search.value = value;
+      search.dispatchEvent(new Event('input'));
+    }
+    expect(mocks.map.setResults).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(mocks.map.setResults).toHaveBeenCalledOnce());
+    const results = mocks.map.setResults.mock.lastCall?.[0] as Result[];
+    expect(results).toEqual([]);
+    element<HTMLButtonElement>('[data-day="any"]').click();
+    expect((mocks.map.setResults.mock.lastCall?.[0] as Result[])[0]?.church.id).toBe('second');
+  });
+
+  it('updates only cards and popups belonging to the loaded region', async () => {
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const indexed = {
+      churches: database.churches.map((church, index) => ({
+        ...church,
+        region: index === 0 ? 'wien' : 'tirol',
+        service_index: [{ date: today, language: 'English' }],
+      })),
+      service_files: { wien: 'services-wien-abcd.json', tirol: 'services-tirol-abcd.json' },
+      services: {},
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url === 'https://ipwho.is/') return new Promise<Response>(() => {});
+        return Promise.resolve({
+          ok: true,
+          json: async () =>
+            url.includes('services-wien-')
+              ? { services: { first: [database.services.first[0]] } }
+              : indexed,
+        });
+      }),
+    );
+    await start();
+    element<HTMLButtonElement>('.view-toggle [data-view="list"]').click();
+    const first = element<HTMLElement>('.card[data-id="first"]');
+    const second = element<HTMLElement>('.card[data-id="second"]');
+    mocks.map.updateSchedule.mockClear();
+    first.click();
+    await vi.waitFor(() => expect(first.textContent).toContain('09:00'));
+    expect(element('.card[data-id="first"]')).toBe(first);
+    expect(element('.card[data-id="second"]')).toBe(second);
+    expect(
+      mocks.map.updateSchedule.mock.calls.map(([result]) => (result as Result).church.id),
+    ).toEqual(['first', 'first']);
+  });
+
   it('credits Ember before any Italy records have been imported', async () => {
     await start();
     const link = element<HTMLAnchorElement>('#italy-source');

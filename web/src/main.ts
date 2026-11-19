@@ -4,9 +4,10 @@ import { formatMessage, isLocale, messages, resolveLocale } from './i18n';
 import { ALL_DENOMINATIONS, ALL_LANGUAGES, dateForDay, filterResults, toIsoDate } from './filters';
 import type { Church, Filters, Position, Result } from './types';
 import { populateFilterOptions } from './ui/filter-options';
-import { renderResults, setActiveCard } from './ui/list';
+import { setActiveCard } from './ui/list';
 import { applyLocale, getSavedLocale, saveLocale } from './ui/locale';
 import { ChurchMap } from './ui/map';
+import { VirtualResults } from './ui/virtual-list';
 import './style.css';
 
 const $ = <T extends HTMLElement>(selector: string): T => {
@@ -59,6 +60,7 @@ let scheduleLoader: ScheduleLoader | null = null;
 let cardObserver: IntersectionObserver | null = null;
 let cardsGeneration = 0;
 let selectedChurch: string | null = null;
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
 const map = new ChurchMap($('#map'), {
   onPick: (position) => {
@@ -70,10 +72,29 @@ const map = new ChurchMap($('#map'), {
   onSelect: (id) => {
     focusChurch(id);
     selectedChurch = id;
-    setActiveCard(resultsEl, id, true);
+    cards.show(id);
+    setActiveCard(resultsEl, id, false);
     requestSchedule(id);
   },
 });
+
+const cards = new VirtualResults(
+  resultsEl,
+  {
+    onHover: (id) => map.highlight(id),
+    onSelect: (id) => {
+      map.highlight(id);
+      focusChurch(id);
+      selectedChurch = id;
+      setActiveCard(resultsEl, id, false);
+      requestSchedule(id);
+    },
+    onOpenWebsite: () => trackEvent('open_website'),
+    onOpenMap: () => trackEvent('open_google_maps'),
+    onRetry: retrySchedule,
+  },
+  observeCards,
+);
 
 const mapElement = $('#map');
 for (const event of ['pointerdown', 'wheel', 'keydown']) {
@@ -144,6 +165,8 @@ function setOrigin(
 }
 
 function refresh(fit = true): void {
+  clearTimeout(searchTimer);
+  searchTimer = undefined;
   const { filters } = state;
   const results = filterResults(
     state.churches,
@@ -168,28 +191,17 @@ function refresh(fit = true): void {
 }
 
 function renderCards(): void {
-  cardObserver?.disconnect();
-  const generation = ++cardsGeneration;
-  renderResults(
-    resultsEl,
+  cards.setResults(
     currentResults,
     state.filters.date === null || state.weekend,
-    {
-      onHover: (id) => map.highlight(id),
-      onSelect: (id) => {
-        map.highlight(id);
-        focusChurch(id);
-        selectedChurch = id;
-        setActiveCard(resultsEl, id, false);
-        requestSchedule(id);
-      },
-      onOpenWebsite: () => trackEvent('open_website'),
-      onOpenMap: () => trackEvent('open_google_maps'),
-      onRetry: retrySchedule,
-    },
     locale,
     messages[locale],
   );
+}
+
+function observeCards(): void {
+  cardObserver?.disconnect();
+  const generation = ++cardsGeneration;
   if (selectedChurch) setActiveCard(resultsEl, selectedChurch, false);
   if (layoutEl.dataset.view !== 'list') return;
   if (typeof IntersectionObserver !== 'undefined') {
@@ -237,22 +249,29 @@ function requestSchedule(id: string, retry = false): void {
   )
     return;
   const request = scheduleLoader.load(church);
-  updateSchedules();
-  void request.then(updateSchedules, updateSchedules);
+  updateSchedules(church.region);
+  void request.then(
+    () => updateSchedules(church.region),
+    () => updateSchedules(church.region),
+  );
 }
 
-function updateSchedules(): void {
-  currentResults = filterResults(
-    state.churches,
+function updateSchedules(region: string | undefined): void {
+  const affected = currentResults.filter((result) => result.church.region === region);
+  const updated = filterResults(
+    affected.map((result) => result.church),
     state.filters,
     state.origin,
     state.weekend,
     toIsoDate(new Date()),
   );
-  renderCards();
-  for (const result of currentResults) {
-    if (result.church.serviceIndex)
-      map.updateSchedule(result, messages[locale], retrySchedule, locale);
+  const byId = new Map(updated.map((result) => [result.church.id, result]));
+  for (const result of affected) {
+    const next = byId.get(result.church.id);
+    if (!next) continue;
+    result.services = next.services;
+    cards.update(result);
+    map.updateSchedule(result, messages[locale], retrySchedule, locale);
   }
 }
 
@@ -302,9 +321,13 @@ uiLanguageSelect.addEventListener('change', () => {
 });
 nameInput.addEventListener('input', () => {
   state.filters.query = nameInput.value;
-  refresh();
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => refresh(), 200);
 });
-nameInput.addEventListener('change', () => trackEvent('search_name'));
+nameInput.addEventListener('change', () => {
+  if (searchTimer !== undefined) refresh();
+  trackEvent('search_name');
+});
 
 function locate(): void {
   const request = ++locationRequest;
@@ -361,7 +384,13 @@ document.querySelectorAll<HTMLElement>('.view-toggle button').forEach((button) =
       .querySelectorAll('.view-toggle button')
       .forEach((b) => b.classList.toggle('active', b === button));
     map.invalidate();
-    if (layoutEl.dataset.view === 'list') renderCards();
+    if (layoutEl.dataset.view === 'list') {
+      renderCards();
+      if (selectedChurch) {
+        cards.show(selectedChurch);
+        setActiveCard(resultsEl, selectedChurch, false);
+      }
+    }
     if (layoutEl.dataset.view === 'map' && pendingChurchFocus) focusChurch(pendingChurchFocus);
     else if (layoutEl.dataset.view === 'map' && pendingResultsFit) {
       pendingResultsFit = false;

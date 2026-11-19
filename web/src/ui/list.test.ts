@@ -50,6 +50,9 @@ describe('result cards', () => {
       expect(link.rel).toBe('noopener noreferrer');
     }
     expect(serviceLabel(result.services[0]!, false, 'en')).toBe('00:00 · English');
+    expect(serviceLabel({ ...result.services[0]!, language: 'englis' }, false, 'en')).toBe(
+      '00:00 · English',
+    );
     expect(serviceLabel(result.services[0]!, true, 'en')).toContain('24 Oct');
   });
 

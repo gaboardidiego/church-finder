@@ -103,6 +103,29 @@ describe('filters', () => {
     ).toContain('unknown');
   });
 
+  it('groups language aliases and filters both indexes and loaded schedules', () => {
+    const mixed = [
+      {
+        ...make('indexed', 'Indexed', 48.2, [
+          { date: '2026-10-24', startTime: '09:00', language: 'englis' },
+        ]),
+        serviceIndex: [{ date: '2026-10-24', language: 'en' }],
+      },
+      make('other', 'Other', 48.2, [
+        { date: '2026-10-24', startTime: '10:00', language: 'English' },
+        { date: '2026-10-24', startTime: '11:00', language: 'hr' },
+      ]),
+    ];
+    expect(collectLanguages(mixed)).toEqual(['Croatian', 'English']);
+    const results = applyFilters(
+      mixed,
+      { query: '', date: '2026-10-24', language: 'English', denomination: '' },
+      null,
+    );
+    expect(results.map((result) => result.church.id)).toEqual(['indexed', 'other']);
+    expect(results.map((result) => result.services.length)).toEqual([1, 1]);
+  });
+
   it('computes dates', () => {
     expect(addDays('2026-10-31', 1)).toBe('2026-11-01');
     expect(weekendDates('2026-10-22')).toEqual(['2026-10-24', '2026-10-25']);

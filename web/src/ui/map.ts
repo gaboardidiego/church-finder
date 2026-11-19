@@ -1,5 +1,8 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet.markercluster';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import { displayLanguage } from '../language';
 import { messages, type Locale, type Messages } from '../i18n';
 import type { Position, Result } from '../types';
@@ -37,8 +40,10 @@ export interface MapHandlers {
 export class ChurchMap {
   private map: L.Map;
   private markers = new Map<string, L.Marker>();
-  private layer = L.layerGroup();
+  private results = new Map<string, Result>();
+  private layer = L.markerClusterGroup({ removeOutsideVisibleBounds: true });
   private origin: L.Marker | null = null;
+  private highlighted: string | null = null;
 
   constructor(
     element: HTMLElement,
@@ -86,19 +91,25 @@ export class ChurchMap {
   ): void {
     this.layer.clearLayers();
     this.markers.clear();
+    this.results.clear();
+    this.highlighted = null;
+    const markers: L.Marker[] = [];
     for (const { church, services } of results) {
+      const result = { church, services, distanceKm: null };
+      this.results.set(church.id, result);
       const marker = L.marker([church.position.latitude, church.position.longitude], {
         icon: churchIcon(false),
         title: church.name,
       });
       marker.bindPopup(
-        this.popupContent({ church, services, distanceKm: null }, text, onRetry, locale),
+        () => this.popupContent(this.results.get(church.id) ?? result, text, onRetry, locale),
         { autoPan: false },
       );
       marker.on('click', () => this.handlers.onSelect(church.id));
-      marker.addTo(this.layer);
+      markers.push(marker);
       this.markers.set(church.id, marker);
     }
+    this.layer.addLayers(markers);
   }
 
   updateSchedule(
@@ -107,9 +118,13 @@ export class ChurchMap {
     onRetry: (id: string) => void,
     locale: Locale,
   ): void {
-    this.markers
-      .get(result.church.id)
-      ?.setPopupContent(this.popupContent(result, text, onRetry, locale));
+    this.results.set(result.church.id, result);
+    const marker = this.markers.get(result.church.id);
+    marker
+      ?.getPopup()
+      ?.setContent(() =>
+        this.popupContent(this.results.get(result.church.id) ?? result, text, onRetry, locale),
+      );
   }
 
   private popupContent(
@@ -195,9 +210,13 @@ export class ChurchMap {
   }
 
   highlight(id: string | null): void {
-    for (const [key, marker] of this.markers) {
-      marker.setIcon(churchIcon(key === id));
-      marker.setZIndexOffset(key === id ? 500 : 0);
-    }
+    if (this.highlighted === id) return;
+    const previous = this.highlighted ? this.markers.get(this.highlighted) : undefined;
+    previous?.setIcon(churchIcon(false));
+    previous?.setZIndexOffset(0);
+    const active = id ? this.markers.get(id) : undefined;
+    active?.setIcon(churchIcon(true));
+    active?.setZIndexOffset(500);
+    this.highlighted = id;
   }
 }

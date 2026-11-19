@@ -56,8 +56,10 @@ export function filterResults(
 export function collectLanguages(churches: Church[]): string[] {
   const set = new Set<string>();
   for (const church of churches)
-    for (const s of church.serviceIndex ?? church.services)
-      if (displayLanguage(s.language)) set.add(s.language);
+    for (const s of church.serviceIndex ?? church.services) {
+      const language = displayLanguage(s.language);
+      if (language) set.add(language);
+    }
   return [...set].sort((a, b) => a.localeCompare(b));
 }
 
@@ -93,7 +95,8 @@ function applyFiltersForDays(
     if (filters.denomination && church.denomination !== filters.denomination) continue;
     const matches = (s: { date: string; language: string }): boolean =>
       (days === null || days.includes(s.date)) &&
-      (filters.language === ALL_LANGUAGES || s.language === filters.language);
+      (filters.language === ALL_LANGUAGES ||
+        displayLanguage(s.language) === displayLanguage(filters.language));
     const services = church.services.filter(matches);
     const serviceFilterActive = days !== null || filters.language !== ALL_LANGUAGES;
     if (serviceFilterActive && !(church.serviceIndex ?? church.services).some(matches)) continue;

@@ -47,7 +47,8 @@ the importer uses coordinates from another response for that church. Conflicting
 or church names still stop the import.
 
 The church index is published to `web/public/data/churches_vienna.database.json`, whose legacy
-filename is kept for URL compatibility. It includes a compact date/language index for filtering.
+filename is kept for URL compatibility. It includes a compact date/language index for filtering,
+grouping dates by language; the website also supports older indexes with individual entries.
 Full schedules are published alongside it as content-addressed `services-<state>-<hash>.json`
 files, one per Austrian federal state. The frontend fetches these files as needed.
 State assignments use simplified 2021 boundaries: CC BY 4.0 Flooh Perlot,
@@ -127,9 +128,10 @@ the delay but cannot lower it below one second. The previous `--source ember` op
 accepted. Do not run multiple importers against the same checkpoint at the same time.
 
 The Italy index is published independently to `web/public/data/churches_italy.database.json`,
-with content-addressed service files beside it. Each import replaces the Italy index and backs up
-its previous version; Austria's output is not overwritten. The website loads both indexes and
-displays an explicit warning if either fails. Use `--output` and `--state` to select different
+using the same compact index grouped by language as Austria and content-addressed service files
+beside it. Each import replaces the Italy index and backs up its previous version; Austria's output
+is not overwritten. The website loads both indexes and displays an explicit warning if either fails.
+Use `--output` and `--state` to select different
 paths. A custom index and its service files must be placed in the website data directory to be
 used by the website. Existing historical indexes retain their original source credit when restored.
 

@@ -1,6 +1,8 @@
 # Church Finder
 
 Find church services in Austria and, where available, Italy by day, language and location.
+Recognized service-language codes and spelling variants are grouped under their English names
+in the language filter and schedules; unrecognized values are shown as supplied.
 
 ## Python scraper
 

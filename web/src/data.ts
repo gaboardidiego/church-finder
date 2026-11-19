@@ -23,6 +23,25 @@ function parseServices(raw: unknown): Service[] {
     .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
 }
 
+function parseServiceIndex(raw: unknown): ServiceIndexEntry[] {
+  if (Array.isArray(raw))
+    return raw
+      .map(parseService)
+      .filter((s): s is Service => s !== null)
+      .map(({ date, language }) => ({ date, language }));
+  if (!isRecord(raw)) return [];
+  const entries: ServiceIndexEntry[] = [];
+  for (const [language, dates] of Object.entries(raw)) {
+    if (!Array.isArray(dates)) continue;
+    const name = str(language) || 'Unknown';
+    for (const date of dates) {
+      const value = str(date);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) entries.push({ date: value, language: name });
+    }
+  }
+  return entries;
+}
+
 const regions = new Set([
   'wien',
   'burgenland',
@@ -62,13 +81,8 @@ export function parseDatabase(raw: unknown): Church[] {
     const rawServices = servicesByChurch[id];
     const services = parseServices(rawServices);
     const lastVerifiedAt = str(item.last_verified_at);
-    const indexed = Array.isArray(item.service_index);
-    const serviceIndex: ServiceIndexEntry[] = indexed
-      ? (item.service_index as unknown[])
-          .map(parseService)
-          .filter((s): s is Service => s !== null)
-          .map(({ date, language }) => ({ date, language }))
-      : [];
+    const indexed = Array.isArray(item.service_index) || isRecord(item.service_index);
+    const serviceIndex = indexed ? parseServiceIndex(item.service_index) : [];
     churches.push({
       id,
       name: str(item.name) || 'Unnamed church',
