@@ -127,10 +127,12 @@ def test_client_paces_requests_and_identifies_itself():
         patch("church_finder_scraper.italy.ember.time.sleep") as sleep,
     ):
         client.page("")
-        client.page("first")
+        client.page("first", "FR")
     sleep.assert_called_once_with(0.75)
     assert urlopen.call_args_list[0].args[0].get_header("User-agent") == "church-finder/1.0"
+    assert "country=IT" in urlopen.call_args_list[0].args[0].full_url
     assert "after=first" in urlopen.call_args_list[1].args[0].full_url
+    assert "country=FR" in urlopen.call_args_list[1].args[0].full_url
     with pytest.raises(ValueError, match="at least one second"):
         ember.EmberClient(0.5)
 
@@ -147,7 +149,7 @@ def test_checkpoint_resumes_and_refreshes_stale_pages(tmp_path: Path):
         client.page.side_effect = [second]
         result = ember.import_database(state, 1)
     assert len(result["churches"]) == 2
-    assert client.page.call_args_list == [(("",),), (("first",),), (("first",),)]
+    assert client.page.call_args_list == [(("", "IT"),), (("first", "IT"),), (("first", "IT"),)]
     with sqlite3.connect(state) as db:
         cached = db.execute("SELECT data FROM ember_pages WHERE cursor='first'").fetchone()[0]
         assert "email" not in json.loads(cached)["churches"][0]
@@ -159,12 +161,103 @@ def test_checkpoint_resumes_and_refreshes_stale_pages(tmp_path: Path):
     client.page.side_effect = [first, second]
     with patch("church_finder_scraper.italy.ember.EmberClient", return_value=client):
         ember.import_database(state, 1)
-    assert client.page.call_args_list == [(("",),), (("first",),)]
+    assert client.page.call_args_list == [(("", "IT"),), (("first", "IT"),)]
     client.reset_mock()
     client.page.side_effect = [first, second]
     with patch("church_finder_scraper.italy.ember.EmberClient", return_value=client):
         ember.import_database(state, 1, fresh=True)
-    assert client.page.call_args_list == [(("",),), (("first",),)]
+    assert client.page.call_args_list == [(("", "IT"),), (("first", "IT"),)]
+
+
+def test_europe_checkpoint_resumes_per_country_and_validates_scope(tmp_path: Path):
+    state = tmp_path / "europe.sqlite"
+    client = Mock()
+    italian = {"churches": [church("it")]}
+    french = {"churches": [church("fr", countryCode="FR", timezone="Europe/Paris")]}
+    client.page.side_effect = [italian, OSError("offline")]
+    countries = ("IT", "FR", "DE")
+    with patch("church_finder_scraper.italy.ember.EmberClient", return_value=client):
+        with pytest.raises(OSError, match="offline"):
+            ember.import_database(state, 1, countries=countries)
+        client.page.side_effect = [french, {"churches": []}]
+        result = ember.import_database(state, 1, countries=countries)
+        assert client.page.call_args_list == [
+            (("", "IT"),),
+            (("", "FR"),),
+            (("", "FR"),),
+            (("", "DE"),),
+        ]
+        assert {item["region"].split("-")[0] for item in result["churches"]} == {"italy", "ember"}
+        with pytest.raises(ValueError, match="different country selection"):
+            ember.import_database(state, 1)
+        client.page.side_effect = [italian]
+        assert len(ember.import_database(state, 1, fresh=True)["churches"]) == 1
+
+
+def test_rejects_mismatched_countries_and_empty_import(tmp_path: Path):
+    with pytest.raises(ValueError, match="Unexpected Ember country"):
+        ember.normalize_church(church(countryCode="AT"), datetime.now(UTC), "FR")
+    client = Mock()
+    client.page.return_value = {"churches": []}
+    with patch("church_finder_scraper.italy.ember.EmberClient", return_value=client):
+        with pytest.raises(ValueError, match="no usable churches"):
+            ember.import_database(tmp_path / "empty.sqlite", 1, countries=("FR",))
+        with pytest.raises(ValueError, match="country selection"):
+            ember.import_database(tmp_path / "invalid.sqlite", 1, countries=("AT",))
+
+
+def test_europe_cli_uses_separate_checkpoint_and_all_non_austrian_countries(tmp_path: Path):
+    from church_finder_scraper import cli
+
+    record = ember.normalize_church(
+        church(countryCode="FR", timezone="Europe/Paris"), datetime(2026, 11, 18, tzinfo=UTC), "FR"
+    )
+    assert record is not None
+    database = {
+        "churches": [record["church"]],
+        "services": {record["church"]["uuid"]: record["services"]},
+    }
+    with patch("church_finder_scraper.italy.cli.import_ember", return_value=database) as importer:
+        assert (
+            cli.dispatch(
+                "services", ["--country", "europe", "--output", str(tmp_path / "index.json")]
+            )
+            == 0
+        )
+    assert importer.call_args.args[0].name == "ember_europe.checkpoint.sqlite"
+    assert importer.call_args.kwargs["countries"] == ember.EUROPE_COUNTRIES
+    assert "IT" in ember.EUROPE_COUNTRIES and "FR" in ember.EUROPE_COUNTRIES
+    assert "AT" not in ember.EUROPE_COUNTRIES
+    index = json.loads((tmp_path / "index.json").read_text())
+    assert index["churches"][0]["region"].startswith("ember-fr-")
+
+
+def test_europe_cli_keeps_previous_index_when_a_country_fails(tmp_path: Path):
+    from church_finder_scraper import cli
+
+    output = tmp_path / "index.json"
+    output.write_text('{"previous":true}', encoding="utf-8")
+    client = Mock()
+    client.page.side_effect = [
+        {"churches": [church("first", countryCode="AL")]},
+        OSError("offline"),
+    ]
+    with patch("church_finder_scraper.italy.ember.EmberClient", return_value=client):
+        assert (
+            cli.dispatch(
+                "services",
+                [
+                    "--country",
+                    "europe",
+                    "--state",
+                    str(tmp_path / "state.sqlite"),
+                    "--output",
+                    str(output),
+                ],
+            )
+            == 1
+        )
+    assert json.loads(output.read_text()) == {"previous": True}
 
 
 @pytest.mark.parametrize("source_args", [[], ["--source", "ember"]])

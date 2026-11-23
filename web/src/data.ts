@@ -58,7 +58,13 @@ function scheduleFilename(
   region: string | undefined,
   files: Record<string, unknown>,
 ): string | null {
-  if (!region || (!regions.has(region) && !/^italy-[a-z0-9-]+$/.test(region))) return null;
+  if (
+    !region ||
+    (!regions.has(region) &&
+      !/^italy-[a-z0-9-]+$/.test(region) &&
+      !/^ember-[a-z]{2}-[a-f0-9]{2}$/.test(region))
+  )
+    return null;
   const filename = files[region];
   return typeof filename === 'string' &&
     new RegExp(`^services-${region}-[a-f0-9]+\\.json$`).test(filename)

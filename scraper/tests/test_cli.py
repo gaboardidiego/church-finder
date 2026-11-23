@@ -72,7 +72,7 @@ def test_help_includes_country_and_country_specific_options(capsys: pytest.Captu
         cli.dispatch("services", ["--help"])
     assert error.value.code == 0
     help_text = capsys.readouterr().out
-    assert "--country {austria,italy}" in help_text
+    assert "--country {austria,italy,europe}" in help_text
     assert "--consent-google-maps" in help_text
 
 

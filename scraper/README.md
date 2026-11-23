@@ -17,8 +17,8 @@ Install Playwright's browser once before importing Austrian service schedules:
 uv run playwright install chromium
 ```
 
-Run `uv run churches-services --help`. The command accepts `--country austria` or
-`--country italy` and defaults to Austria; unsupported countries are rejected. By default, it searches Austrian
+Run `uv run churches-services --help`. The command accepts `--country austria`,
+`--country italy`, or `--country europe` and defaults to Austria. By default, it searches Austrian
 postcodes with Gottesdienst.at. `--vienna-only` restricts the search to Vienna postcodes, while
 repeatable `--postcode` options select individual postcodes.
 
@@ -112,25 +112,31 @@ website database. If the run is interrupted, repeat the same command **without**
 resume; using `--fresh` again discards the new progress. Do not run multiple importers against
 the same checkpoint at the same time.
 
-## Italy
+## Europe (excluding Austria)
 
 ```sh
-uv run churches-services --country italy
+uv run churches-services --country europe
 ```
 
 The [Ember Mass-times API](https://ember.dpgu.me/developers/api/) provides an open, paginated
-directory, including its Italian churches and structured recurring Mass schedules. The importer
-requests full church pages filtered by `country=IT`, with no authentication, and caches them in
-`.scraper-state/ember_italy.checkpoint.sqlite` for up to one day. It requests at most one page per
-second, resumes interrupted downloads, and only publishes after the complete paginated import
+directory, including structured recurring Mass schedules. The importer requests full church pages
+for European country codes, including Italy and transcontinental countries, but excluding Austria.
+Coverage depends on Ember and may be empty or incomplete in any country. It uses no authentication
+and caches pages by country and cursor in `.scraper-state/ember_europe.checkpoint.sqlite` for up to
+one day. It requests at most one page per second across all countries, resumes interrupted downloads,
+and only publishes after every country has been processed and the complete paginated import
 succeeds. `--fresh` discards the Ember checkpoint; omit it when resuming. `--interval` can increase
 the delay but cannot lower it below one second. The previous `--source ember` option remains
 accepted. Do not run multiple importers against the same checkpoint at the same time.
 
-The Italy index is published independently to `web/public/data/churches_italy.database.json`,
+The European index is published independently to `web/public/data/churches_italy.database.json`
+(the filename is retained for URL compatibility),
 using the same compact index grouped by language as Austria and content-addressed service files
-beside it. Each import replaces the Italy index and backs up its previous version; Austria's output
+beside it. Each import replaces the Ember index and backs up its previous version; Austria's output
 is not overwritten. The website loads both indexes and displays an explicit warning if either fails.
+The existing `--country italy` command and its separate checkpoint remain available, but running it
+replaces the European index with Italy-only results. A checkpoint cannot be reused for a different
+country selection unless `--fresh` is supplied.
 Use `--output` and `--state` to select different
 paths. A custom index and its service files must be placed in the website data directory to be
 used by the website. Existing historical indexes retain their original source credit when restored.
@@ -148,4 +154,5 @@ verified in 2020 or 2021. The website displays the last verification date, or th
 alongside each Ember church. Dates generated from a recurrence are not proof that a particular
 celebration will take place; confirm with the parish. Ember asks clients to
 [credit the service](https://ember.dpgu.me/developers/), and the website links to Ember when
-its data is selected. The importer does not automatically refresh or schedule itself.
+its data is selected. The GitHub workflow refreshes both sources weekly; the importer itself does
+not schedule runs.

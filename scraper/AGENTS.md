@@ -6,7 +6,8 @@
 - `austria/` imports service listings for Austrian postcodes, including Vienna,
   enriches websites using Austrian OSM data, and contains the importer CLI, checkpoint storage
   and publication logic.
-- `italy/` imports Ember API church data and schedules using its own checkpoint.
+- `italy/` imports Ember API church data and schedules for Europe excluding Austria, using its own
+  country-scoped checkpoint.
   Respect source terms and request pacing.
 - Keep parsing and transformation logic independently testable. Put tests in `tests/`.
 - Use Astral's Ruff for linting and formatting and ty for type checking.

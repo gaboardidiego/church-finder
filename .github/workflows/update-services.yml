@@ -1,9 +1,9 @@
-name: Update Austria services
+name: Update services
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "17 3 1 * *"
+    - cron: "17 3 * * 1"
 
 permissions:
   contents: write
@@ -37,6 +37,9 @@ jobs:
       - name: Import services across Austria
         run: uv run --project scraper --locked --no-dev churches-services --country austria --consent-google-maps --fresh
 
+      - name: Import Ember services across Europe
+        run: uv run --project scraper --locked --no-dev churches-services --country europe --fresh
+
       - name: Update published database
         run: cp web/public/data/*.json docs/data/
 
@@ -49,5 +52,5 @@ jobs:
             echo "No database changes."
             exit 0
           fi
-          git commit -m "Update Austria services database"
+          git commit -m "Update services databases"
           git push origin "HEAD:$GITHUB_REF"

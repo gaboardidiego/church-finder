@@ -1,4 +1,4 @@
-"""Read Ember's Italian directory and expand its Mass recurrence rules."""
+"""Read Ember's country directories and expand its Mass recurrence rules."""
 
 from __future__ import annotations
 
@@ -28,6 +28,12 @@ BASE_URL = "https://ember-mass-times.dpgu.workers.dev/churches/index"
 NAMESPACE = uuid.UUID("5187b4b1-f81e-4e16-bd58-c5437cbb2e95")
 MAX_AGE = timedelta(days=1)
 HORIZON_DAYS = 30
+# Includes European microstates, dependencies, and transcontinental countries.
+# Austria is imported separately from Gottesdienst.at.
+EUROPE_COUNTRIES = tuple(
+    "AL AD AM AX AZ BY BE BA BG HR CY CZ DK EE FO FI FR GE DE GI GR GG HU IS IE IM IT "
+    "JE XK LV LI LT LU MT MD MC ME NL MK NO PL PT RO RU SM RS SK SI ES SJ SE CH TR UA GB VA".split()
+)
 LANGUAGES = {
     "it": "Italian",
     "en": "English",
@@ -49,8 +55,8 @@ class EmberClient:
         self.interval = interval
         self.last_request: float | None = None
 
-    def page(self, after: str) -> dict:
-        params = {"country": "IT", "full": "1", "limit": "1000"}
+    def page(self, after: str, country: str = "IT") -> dict:
+        params = {"country": country, "full": "1", "limit": "1000"}
         if after:
             params["after"] = after
         if self.last_request is not None:
@@ -161,8 +167,8 @@ def expand_mass(service: dict, today: date) -> list[dict[str, str]]:
     ]
 
 
-def normalize_church(source: dict, now: datetime) -> dict | None:
-    church_id, name, country = source.get("id"), source.get("name"), source.get("countryCode")
+def normalize_church(source: dict, now: datetime, country: str = "IT") -> dict | None:
+    church_id, name = source.get("id"), source.get("name")
     if (
         not isinstance(church_id, str)
         or not church_id
@@ -170,8 +176,8 @@ def normalize_church(source: dict, now: datetime) -> dict | None:
         or not name.strip()
     ):
         raise ValueError("Invalid Ember church identity")
-    if country != "IT":
-        raise ValueError(f"Unexpected Ember country for {church_id}: {country}")
+    if source.get("countryCode") != country:
+        raise ValueError(f"Unexpected Ember country for {church_id}: {source.get('countryCode')}")
     status = source.get("status")
     if status in ("closed", "temporarily_closed"):
         return None
@@ -203,7 +209,10 @@ def normalize_church(source: dict, now: datetime) -> dict | None:
         "position": {"latitude": latitude, "longitude": longitude},
         "religion": "christian",
         "denomination": "roman_catholic",
-        "region": "italy-ember-" + hashlib.sha256(church_id.encode()).hexdigest()[:2],
+        "region": (
+            ("italy-ember-" if country == "IT" else f"ember-{country.lower()}-")
+            + hashlib.sha256(church_id.encode()).hexdigest()[:2]
+        ),
         "schedule_source": "ember",
     }
     verified = source.get("lastVerifiedAt")
@@ -301,7 +310,15 @@ def compact_page(page: dict, after: str) -> dict:
     return {"churches": compact, "next": next_cursor}
 
 
-def import_database(state: Path, interval: float, *, fresh: bool = False) -> dict:
+def import_database(
+    state: Path, interval: float, *, fresh: bool = False, countries: tuple[str, ...] = ("IT",)
+) -> dict:
+    if (
+        not countries
+        or len(set(countries)) != len(countries)
+        or any(country not in EUROPE_COUNTRIES for country in countries)
+    ):
+        raise ValueError("Invalid Ember country selection")
     client = EmberClient(interval)
     state.parent.mkdir(parents=True, exist_ok=True)
     with closing(sqlite3.connect(state)) as db:
@@ -317,6 +334,23 @@ def import_database(state: Path, interval: float, *, fresh: bool = False) -> dic
         if version and version[0] != "1":
             raise ValueError("Unsupported Ember checkpoint version")
         db.execute("INSERT OR IGNORE INTO ember_metadata VALUES ('version', '1')")
+        scope = json.dumps(countries)
+        saved_scope = db.execute(
+            "SELECT value FROM ember_metadata WHERE key='countries'"
+        ).fetchone()
+        # Checkpoints predating country selection contain Italian pages only.
+        old_scope = (
+            saved_scope[0]
+            if saved_scope
+            else (
+                json.dumps(("IT",))
+                if db.execute("SELECT 1 FROM ember_pages LIMIT 1").fetchone()
+                else scope
+            )
+        )
+        if old_scope != scope and not fresh:
+            raise ValueError("Ember checkpoint has a different country selection; use --fresh")
+        db.execute("INSERT OR REPLACE INTO ember_metadata VALUES ('countries', ?)", (scope,))
         cutoff = (datetime.now(UTC) - MAX_AGE).isoformat()
         if (
             fresh
@@ -326,45 +360,49 @@ def import_database(state: Path, interval: float, *, fresh: bool = False) -> dic
         ):
             db.execute("DELETE FROM ember_pages")
         db.commit()
-        cursor = ""
-        seen: set[str] = set()
         pages = []
-        while True:
-            if cursor in seen:
-                raise ValueError("Ember pagination cursor repeated")
-            seen.add(cursor)
-            saved = db.execute(
-                "SELECT fetched_at, data FROM ember_pages WHERE cursor=?", (cursor,)
-            ).fetchone()
-            if saved:
-                fetched_at, data = saved
-                page = compact_page(json.loads(data), cursor)
-                LOG.info("Using cached Ember page %d", len(pages) + 1)
-            else:
-                LOG.info("Fetching Ember page %d", len(pages) + 1)
-                page = compact_page(client.page(cursor), cursor)
-                fetched_at = datetime.now(UTC).isoformat()
-                db.execute(
-                    "INSERT INTO ember_pages VALUES (?, ?, ?)",
-                    (cursor, fetched_at, json.dumps(page, ensure_ascii=False)),
-                )
-                db.commit()
-            pages.append((fetched_at, page))
-            next_cursor = page["next"]
-            if next_cursor is None:
-                break
-            cursor = next_cursor
+        for country in countries:
+            cursor = ""
+            seen: set[str] = set()
+            page_number = 0
+            while True:
+                if cursor in seen:
+                    raise ValueError("Ember pagination cursor repeated")
+                seen.add(cursor)
+                page_number += 1
+                key = cursor if countries == ("IT",) else f"{country}:{cursor}"
+                saved = db.execute(
+                    "SELECT fetched_at, data FROM ember_pages WHERE cursor=?", (key,)
+                ).fetchone()
+                if saved:
+                    fetched_at, data = saved
+                    page = compact_page(json.loads(data), cursor)
+                    LOG.info("Using cached Ember page %d for %s", page_number, country)
+                else:
+                    LOG.info("Fetching Ember page %d for %s", page_number, country)
+                    page = compact_page(client.page(cursor, country), cursor)
+                    fetched_at = datetime.now(UTC).isoformat()
+                    db.execute(
+                        "INSERT INTO ember_pages VALUES (?, ?, ?)",
+                        (key, fetched_at, json.dumps(page, ensure_ascii=False)),
+                    )
+                    db.commit()
+                pages.append((country, fetched_at, page))
+                next_cursor = page["next"]
+                if next_cursor is None:
+                    break
+                cursor = next_cursor
         cutoff = (datetime.now(UTC) - MAX_AGE).isoformat()
-        if any(fetched_at < cutoff for fetched_at, _ in pages):
+        if any(fetched_at < cutoff for _, fetched_at, _ in pages):
             raise ValueError("Ember checkpoint is stale; rerun to refresh it")
         now = datetime.now(UTC)
         churches, services = [], {}
         unscheduled = 0
-        for _, page in pages:
+        for country, _, page in pages:
             for record in page["churches"]:
                 if not record.get("hasStructuredSchedule"):
                     unscheduled += 1
-                result = normalize_church(record, now)
+                result = normalize_church(record, now, country)
                 if result is None:
                     continue
                 church = result["church"]
@@ -373,7 +411,7 @@ def import_database(state: Path, interval: float, *, fresh: bool = False) -> dic
                 churches.append(church)
                 services[church["uuid"]] = result["services"]
         if not churches:
-            raise ValueError("Ember returned no usable Italian churches; refusing to publish")
+            raise ValueError("Ember returned no usable churches; refusing to publish")
         LOG.info(
             "Prepared %d churches and %d Masses; %d churches have no structured schedule",
             len(churches),
