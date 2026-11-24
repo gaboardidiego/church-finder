@@ -107,6 +107,37 @@ describe('regional schedules', () => {
     expect(fetch.mock.calls.some(([url]) => url.includes('services-italy-example-'))).toBe(true);
   });
 
+  it('loads Ember schedules for a non-Italian country', async () => {
+    const region = 'ember-fr-ab';
+    const data = {
+      churches: [
+        church('france', {
+          region,
+          schedule_source: 'ember',
+          service_index: { French: ['2026-10-24'] },
+        }),
+      ],
+      service_files: { [region]: `services-${region}-abcd1234.json` },
+    };
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => data })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          services: { france: [{ date: '2026-10-24', start_time: '10:00', language: 'French' }] },
+        }),
+      });
+    vi.stubGlobal('fetch', fetch);
+    const database = await loadDatabase('/data/churches_italy.database.json');
+    expect(database.churches[0]?.scheduleStatus).toBe('unloaded');
+    await new ScheduleLoader(database.churches, '/data/index.json', database.serviceFiles).load(
+      database.churches[0]!,
+    );
+    expect(database.churches[0]?.services[0]?.startTime).toBe('10:00');
+    expect(fetch.mock.calls[1]?.[0]).toContain('services-ember-fr-ab-abcd1234.json');
+  });
+
   it('rejects duplicate data and country indexes in different directories', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => index }));
     await expect(loadDatabases(['/data/a.json', '/data/b.json'])).rejects.toThrow(

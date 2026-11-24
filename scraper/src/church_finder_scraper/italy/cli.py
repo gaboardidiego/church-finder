@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ..austria.publish import publish_database
 from ..paths import PROJECT_ROOT
-from .ember import LOG
+from .ember import EUROPE_COUNTRIES, LOG
 from .ember import import_database as import_ember
 
 
@@ -16,14 +16,14 @@ def main(
     argv: list[str] | None = None, *, parent_parser: argparse.ArgumentParser | None = None
 ) -> int:
     parser = argparse.ArgumentParser(
-        description="Import Italian church services from Ember",
+        description="Import church services from Ember",
         parents=[parent_parser] if parent_parser else [],
     )
     parser.add_argument(
         "--source",
         choices=("ember",),
         default="ember",
-        help="Italy data source (default: ember); each import replaces the Italy index",
+        help="data source (default: ember); each import replaces the Ember index",
     )
     parser.add_argument(
         "--interval", type=float, default=1.0, help="seconds between requests (minimum: 1)"
@@ -31,24 +31,33 @@ def main(
     parser.add_argument(
         "--state",
         type=Path,
-        default=PROJECT_ROOT / ".scraper-state/ember_italy.checkpoint.sqlite",
+        default=None,
         help="Ember checkpoint path",
     )
     parser.add_argument(
         "--output",
         type=Path,
         default=PROJECT_ROOT / "web/public/data/churches_italy.database.json",
-        help="Italy website database path",
+        help="Ember website database path (legacy Italy filename)",
     )
     parser.add_argument("--fresh", action="store_true", help="discard cached API pages")
     args = parser.parse_args(argv)
+    europe = args.country == "europe" if parent_parser else False
+    if args.state is None:
+        scope = "europe" if europe else "italy"
+        args.state = PROJECT_ROOT / f".scraper-state/ember_{scope}.checkpoint.sqlite"
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     if not math.isfinite(args.interval) or args.interval < 1:
         parser.error("--interval must be at least 1 second")
     if args.state.resolve() == args.output.resolve():
         parser.error("--output and --state must be different files")
-    LOG.info("Importing Ember; the output replaces the previous Italy index")
-    database = import_ember(args.state, args.interval, fresh=args.fresh)
+    LOG.info("Importing Ember; the output replaces the previous Ember index")
+    if europe:
+        database = import_ember(
+            args.state, args.interval, fresh=args.fresh, countries=EUROPE_COUNTRIES
+        )
+    else:
+        database = import_ember(args.state, args.interval, fresh=args.fresh)
     regions = {church["region"] for church in database["churches"]}
     previous, current, backup = publish_database(
         database, args.output, PROJECT_ROOT / "backups", regions=regions

@@ -3,8 +3,9 @@ export type Locale = (typeof locales)[number];
 
 export const messages = {
   en: {
-    scopeAlert: 'Church-service listings from Austria and, where available, Italy are shown.',
-    italySource: 'Italian schedules:',
+    scopeAlert:
+      'Church-service listings from Austria and, where available, the rest of Europe are shown.',
+    italySource: 'Non-Austrian schedules:',
     scheduleVerified: 'Schedule last verified: {date}',
     verificationUnknown: 'Schedule verification date unavailable',
     churchName: 'Church name…',
@@ -45,13 +46,14 @@ export const messages = {
     moreChurches: '+{count} churches',
     website: 'Website',
     directions: 'Directions',
-    title: 'Church Finder Austria & Italy – Church Services, Mass Times & Liturgies',
+    title: 'Church Finder Europe – Church Services, Mass Times & Liturgies',
     description:
-      'Find church services in Austria and Italy by day, language and location, with times and map.',
+      'Find church services across Europe by day, language and location, with times and map.',
   },
   de: {
-    scopeAlert: 'Gottesdienste aus Österreich und, soweit verfügbar, Italien werden angezeigt.',
-    italySource: 'Italienische Gottesdienste:',
+    scopeAlert:
+      'Gottesdienste aus Österreich und, soweit verfügbar, dem übrigen Europa werden angezeigt.',
+    italySource: 'Gottesdienste außerhalb Österreichs:',
     scheduleVerified: 'Gottesdienste zuletzt bestätigt: {date}',
     verificationUnknown: 'Bestätigungsdatum der Gottesdienste nicht verfügbar',
     churchName: 'Kirchenname…',
@@ -94,13 +96,13 @@ export const messages = {
     moreChurches: '+{count} Kirchen',
     website: 'Website',
     directions: 'Route',
-    title: 'Church Finder Österreich & Italien – Gottesdienste, Messen & Liturgien',
+    title: 'Church Finder Europa – Gottesdienste, Messen & Liturgien',
     description:
-      'Finde Gottesdienste in Österreich und Italien nach Tag, Sprache und Standort, mit Uhrzeiten und Karte.',
+      'Finde Gottesdienste in Europa nach Tag, Sprache und Standort, mit Uhrzeiten und Karte.',
   },
   it: {
-    scopeAlert: 'Sono mostrate le celebrazioni in Austria e, ove disponibili, in Italia.',
-    italySource: 'Orari italiani:',
+    scopeAlert: 'Sono mostrate le celebrazioni in Austria e, ove disponibili, nel resto d’Europa.',
+    italySource: 'Orari fuori dall’Austria:',
     scheduleVerified: 'Orari verificati il: {date}',
     verificationUnknown: 'Data di verifica degli orari non disponibile',
     churchName: 'Nome della chiesa…',
@@ -143,9 +145,9 @@ export const messages = {
     moreChurches: '+{count} chiese',
     website: 'Sito web',
     directions: 'Indicazioni',
-    title: 'Church Finder Austria e Italia – Celebrazioni, messe e liturgie',
+    title: 'Church Finder Europa – Celebrazioni, messe e liturgie',
     description:
-      'Trova le celebrazioni in Austria e Italia per giorno, lingua e posizione, con orari e mappa.',
+      'Trova le celebrazioni in Europa per giorno, lingua e posizione, con orari e mappa.',
   },
 } as const;
 
