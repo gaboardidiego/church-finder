@@ -34,7 +34,7 @@ def _service_language(description: str) -> str:
     for source, target in LANGUAGES.items():
         if re.search(rf"(?<!\w){re.escape(source)}(?!\w)", description, re.I):
             return target
-    return "Unknown"
+    return "German"
 
 
 def _parse_service(element, church_id: str) -> dict[str, str] | None:

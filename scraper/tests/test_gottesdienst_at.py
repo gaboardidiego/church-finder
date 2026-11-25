@@ -57,7 +57,7 @@ def test_parse_search_parses_location_services_and_map_position():
                 "position": {"latitude": 47.805, "longitude": 13.034},
             },
             "services": [
-                {"date": "2026-11-08", "start_time": "10:30", "language": "Unknown"},
+                {"date": "2026-11-08", "start_time": "10:30", "language": "German"},
                 {"date": "2026-11-09", "start_time": "19:00", "language": "English"},
             ],
         }
@@ -222,6 +222,18 @@ def test_build_database_deduplicates_services_across_postcodes():
 
     assert len(database["churches"]) == 1
     church_id = database["churches"][0]["uuid"]
+    assert database["services"][church_id] == entry["services"]
+
+
+def test_build_database_defaults_legacy_checkpoint_languages_before_deduplication():
+    entry = parse_search(RESULT)[0]
+    legacy = deepcopy(entry)
+    legacy["services"][0]["language"] = "Unknown"
+
+    database = build_database([{"results": [legacy]}, {"results": [entry]}])
+
+    church_id = database["churches"][0]["uuid"]
+    assert entry["services"][0]["language"] == "German"
     assert database["services"][church_id] == entry["services"]
 
 

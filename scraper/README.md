@@ -25,7 +25,8 @@ repeatable `--postcode` options select individual postcodes.
 The service importer requires explicit `--consent-google-maps` consent; it enables only that
 consent category. `--state` selects the Gottesdienst.at checkpoint (`--nationwide-state` is an
 alias). Languages are inferred from service labels when present and otherwise recorded as
-`Unknown`. Church identifiers differ from the former Vienna importer.
+`German`. Previously checkpointed `Unknown` languages are also treated as German when publishing.
+Church identifiers differ from the former Vienna importer.
 After collecting services, the importer fetches Christian places of worship and church buildings
 across Austria from OpenStreetMap and matches websites by location within 50 metres.
 It uses `website` or `contact:website`, skips ambiguous or invalid matches, and logs coverage.

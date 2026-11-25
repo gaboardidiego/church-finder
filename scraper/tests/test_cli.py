@@ -282,7 +282,7 @@ def test_fresh_services_replaces_old_data_and_resumes_after_interruption(tmp_pat
     assert client.postcode.call_args_list == [(("1010",),), (("2000",),), (("2000",),)]
     database = json.loads(website.read_text())
     assert [church["name"] for church in database["churches"]] == ["New church"]
-    assert database["churches"][0]["service_index"] == {"Unknown": ["2026-11-13"]}
+    assert database["churches"][0]["service_index"] == {"German": ["2026-11-13"]}
     regional = json.loads((website.parent / database["service_files"]["wien"]).read_text())
     assert sum(map(len, regional["services"].values())) == 1
     backups = list((tmp_path / "backups").iterdir())
@@ -347,7 +347,15 @@ def test_services_resumes_completed_checkpoint_and_publishes(tmp_path: Path):
     database = json.loads(website.read_text())
     assert {church["name"] for church in database["churches"]} == {"Church 1010", "Church 2000"}
     assert all(church["website"] == "https://church.example" for church in database["churches"])
+    assert all(
+        church["service_index"] == {"German": ["2026-11-13"]} for church in database["churches"]
+    )
     regional = json.loads(
         (website.parent / database["service_files"]["niederoesterreich"]).read_text()
     )
     assert sum(map(len, regional["services"].values())) == 2
+    assert all(
+        service["language"] == "German"
+        for services in regional["services"].values()
+        for service in services
+    )

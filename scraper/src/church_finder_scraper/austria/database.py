@@ -53,6 +53,8 @@ def build_database(batches: list[dict]) -> dict:
                 search_codes.add(batch["postcode"])
             target = services.setdefault(church_uuid, {})
             for service in entry["services"]:
+                if service["language"] == "Unknown":
+                    service = {**service, "language": "German"}
                 key = json.dumps(service, sort_keys=True, ensure_ascii=False)
                 target[key] = service
 
