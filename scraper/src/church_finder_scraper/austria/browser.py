@@ -1,13 +1,29 @@
 from __future__ import annotations
 
 import re
+import time
+
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from .config import LOG, SOURCE
 
 
 def start_session(page) -> tuple[str, str]:
     LOG.info("Opening Gottesdienst.at service search in Chromium")
-    page.goto(SOURCE, wait_until="domcontentloaded", timeout=30000)
+    for attempt in range(3):
+        try:
+            page.goto(SOURCE, wait_until="domcontentloaded", timeout=60000)
+            break
+        except PlaywrightTimeoutError:
+            if attempt == 2:
+                raise
+            delay = 2 ** (attempt + 1)
+            LOG.warning(
+                "Gottesdienst.at navigation timed out (attempt %d/3); retrying in %d seconds",
+                attempt + 1,
+                delay,
+            )
+            time.sleep(delay)
     notice = page.locator("#klaro .cookie-notice")
     if notice.is_visible(timeout=2000):
         LOG.info("Enabling only Google Maps consent needed for search results")

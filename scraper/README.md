@@ -38,6 +38,8 @@ allows an interrupted run to resume. Each postcode search logs its progress thro
 postcodes, including those already completed in the checkpoint. A postcode returning 200 services
 emits a warning because the site may have truncated that search result. Vienna searches have reached this limit,
 so results may cover fewer services, locations and dates than the former Vienna source.
+Initial browser navigation allows 60 seconds per attempt and retries timeouts twice with a short
+backoff; if all attempts fail, the import stops and can be resumed without `--fresh`.
 Searches may also return locations outside the selected postcode or Vienna.
 Gottesdienst.at services with both date
 fields empty are skipped with a warning because they cannot be scheduled; partially specified or
