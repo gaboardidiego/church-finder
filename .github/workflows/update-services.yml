@@ -2,6 +2,16 @@ name: Update services
 
 on:
   workflow_dispatch:
+    inputs:
+      region:
+        description: "Region to update"
+        type: choice
+        options:
+          - all
+          - austria
+          - europe
+        default: all
+        required: true
   schedule:
     - cron: "17 3 * * 1"
 
@@ -32,12 +42,15 @@ jobs:
         run: uv sync --project scraper --locked --no-dev
 
       - name: Install Chromium
+        if: github.event_name == 'schedule' || inputs.region == 'all' || inputs.region == 'austria'
         run: uv run --project scraper --locked --no-dev playwright install --with-deps chromium
 
       - name: Import services across Austria
+        if: github.event_name == 'schedule' || inputs.region == 'all' || inputs.region == 'austria'
         run: uv run --project scraper --locked --no-dev churches-services --country austria --consent-google-maps --fresh
 
       - name: Import Ember services across Europe
+        if: github.event_name == 'schedule' || inputs.region == 'all' || inputs.region == 'europe'
         run: uv run --project scraper --locked --no-dev churches-services --country europe --fresh
 
       - name: Update published database

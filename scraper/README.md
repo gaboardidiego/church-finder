@@ -128,7 +128,9 @@ Coverage depends on Ember and may be empty or incomplete in any country. It uses
 and caches pages by country and cursor in `.scraper-state/ember_europe.checkpoint.sqlite` for up to
 one day. It requests at most one page per second across all countries, resumes interrupted downloads,
 and only publishes after every country has been processed and the complete paginated import
-succeeds. `--fresh` discards the Ember checkpoint; omit it when resuming. `--interval` can increase
+succeeds. Transient network errors and HTTP 429, 500, 502, 503, and 504 responses are retried up to
+three times with exponential backoff; if they persist, the import stops without publishing.
+`--fresh` discards the Ember checkpoint; omit it when resuming. `--interval` can increase
 the delay but cannot lower it below one second. The previous `--source ember` option remains
 accepted. Do not run multiple importers against the same checkpoint at the same time.
 

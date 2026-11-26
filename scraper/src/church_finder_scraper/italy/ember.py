@@ -14,6 +14,7 @@ from contextlib import closing
 from datetime import UTC, date, datetime, timedelta
 from datetime import time as wall_time
 from pathlib import Path
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -59,17 +60,35 @@ class EmberClient:
         params = {"country": country, "full": "1", "limit": "1000"}
         if after:
             params["after"] = after
-        if self.last_request is not None:
-            delay = self.interval - (time.monotonic() - self.last_request)
-            if delay > 0:
-                time.sleep(delay)
-        self.last_request = time.monotonic()
         request = Request(
             BASE_URL + "?" + urlencode(params),
             headers={"User-Agent": "church-finder/1.0", "Accept": "application/json"},
         )
-        with urlopen(request, timeout=60) as response:
-            value = json.load(response)
+        attempt = 0
+        while True:
+            if self.last_request is not None:
+                delay = self.interval - (time.monotonic() - self.last_request)
+                if delay > 0:
+                    time.sleep(delay)
+            self.last_request = time.monotonic()
+            try:
+                with urlopen(request, timeout=60) as response:
+                    value = json.load(response)
+                break
+            except (HTTPError, URLError, TimeoutError) as error:
+                if attempt >= 3 or (
+                    isinstance(error, HTTPError) and error.code not in (429, 500, 502, 503, 504)
+                ):
+                    raise
+                delay = 2**attempt
+                LOG.warning(
+                    "Ember request for %s failed (%s); retrying in %d second(s)",
+                    country,
+                    error,
+                    delay,
+                )
+                time.sleep(delay)
+                attempt += 1
         if not isinstance(value, dict):
             raise ValueError("Invalid Ember page: expected an object")
         return value

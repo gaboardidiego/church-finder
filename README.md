@@ -50,8 +50,10 @@ split by federal state and loaded as needed. Its checkpoint in `.scraper-state/`
 
 **Update services** runs every Monday at 03:17 UTC on the default branch.
 It can also be run manually from the GitHub Actions tab with a selected branch (normally `main`).
-Each run starts fresh Austrian and European imports and commits both source databases and their
-`docs/data/` copies only after both imports succeed. The workflow requires permission to push to the target branch.
+Manual runs can select `all` (the default), `austria`, or `europe` (excluding Austria).
+Scheduled runs update both regions. Each run starts fresh imports for the selected regions and
+commits the source databases and their `docs/data/` copies only after all selected imports succeed.
+The workflow requires permission to push to the target branch.
 Runs do not retain checkpoints between attempts, and source limits may prevent complete coverage;
 see the scraper README.
 The workflow's `GITHUB_TOKEN` push does not trigger other workflows or a GitHub Pages build;

@@ -3,6 +3,7 @@ import sqlite3
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from unittest.mock import Mock, patch
+from urllib.error import HTTPError, URLError
 
 import pytest
 
@@ -135,6 +136,51 @@ def test_client_paces_requests_and_identifies_itself():
     assert "country=FR" in urlopen.call_args_list[1].args[0].full_url
     with pytest.raises(ValueError, match="at least one second"):
         ember.EmberClient(0.5)
+
+
+def test_client_retries_transient_errors_with_pacing(caplog):
+    client = ember.EmberClient(3)
+    response = Mock()
+    response.__enter__ = Mock(return_value=response)
+    response.__exit__ = Mock(return_value=False)
+    response.read.return_value = b'{"churches":[]}'
+    clock = [0.0]
+    request_times = []
+
+    def sleep(delay):
+        clock[0] += delay
+
+    def request(*args, **kwargs):
+        request_times.append(clock[0])
+        if len(request_times) == 1:
+            raise HTTPError("https://example.org", 500, "Internal Server Error", None, None)
+        if len(request_times) == 2:
+            raise URLError("offline")
+        return response
+
+    with (
+        patch("church_finder_scraper.italy.ember.urlopen", side_effect=request) as urlopen,
+        patch("church_finder_scraper.italy.ember.time.monotonic", side_effect=lambda: clock[0]),
+        patch("church_finder_scraper.italy.ember.time.sleep", side_effect=sleep),
+    ):
+        assert client.page("cursor", "AD") == {"churches": []}
+    assert request_times == [0, 3, 6]
+    assert len({call.args[0].full_url for call in urlopen.call_args_list}) == 1
+    assert "AD" in caplog.text and "retrying" in caplog.text
+
+
+@pytest.mark.parametrize("status, attempts", [(403, 1), (500, 4), (429, 4)])
+def test_client_stops_on_permanent_or_exhausted_http_errors(status, attempts):
+    error = HTTPError("https://example.org", status, "failure", None, None)
+    with (
+        patch("church_finder_scraper.italy.ember.urlopen", side_effect=error) as urlopen,
+        patch("church_finder_scraper.italy.ember.time.sleep"),
+        patch("church_finder_scraper.italy.ember.time.monotonic", return_value=0),
+        pytest.raises(HTTPError) as caught,
+    ):
+        ember.EmberClient(1).page("", "AD")
+    assert caught.value.code == status
+    assert urlopen.call_count == attempts
 
 
 def test_checkpoint_resumes_and_refreshes_stale_pages(tmp_path: Path):
